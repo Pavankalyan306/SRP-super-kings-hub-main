@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 25% 8%;
+    --foreground: 45 10% 95%;
+
+    --card: 220 20% 12%;
+    --card-foreground: 45 10% 95%;
+
+    --popover: 220 20% 14%;
+    --popover-foreground: 45 10% 95%;
+
+    --primary: 45 92% 52%;
+    --primary-foreground: 220 25% 8%;
+
+    --secondary: 220 18% 18%;
+    --secondary-foreground: 45 10% 90%;
+
+    --muted: 220 15% 16%;
+    --muted-foreground: 220 10% 55%;
+
+    --accent: 145 55% 42%;
+    --accent-foreground: 220 25% 8%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 45 92% 52%;
+
+    --radius: 0.75rem;
+
+    --cricket-gold: 45 92% 52%;
+    --cricket-gold-light: 45 85% 65%;
+    --cricket-navy: 220 25% 8%;
+    --cricket-navy-light: 220 20% 14%;
+    --cricket-green: 145 55% 42%;
+    --cricket-green-light: 145 45% 55%;
+    --cricket-red: 0 72% 51%;
+    --cricket-orange: 25 95% 55%;
+
+    --sidebar-background: 220 20% 10%;
+    --sidebar-foreground: 45 10% 90%;
+    --sidebar-primary: 45 92% 52%;
+    --sidebar-primary-foreground: 220 25% 8%;
+    --sidebar-accent: 220 18% 18%;
+    --sidebar-accent-foreground: 45 10% 90%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 45 92% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+@layer utilities {
+  .gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--cricket-gold)) 0%, hsl(var(--cricket-orange)) 100%);
+  }
+  
+  .gradient-navy {
+    background: linear-gradient(180deg, hsl(var(--cricket-navy)) 0%, hsl(var(--cricket-navy-light)) 100%);
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--cricket-gold)) 0%, hsl(var(--cricket-gold-light)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 20px hsl(var(--cricket-gold) / 0.3), 0 0 60px hsl(var(--cricket-gold) / 0.1);
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-lg;
+  }
+}
