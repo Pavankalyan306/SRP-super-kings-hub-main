@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Match, Player, NewsItem, BattingEntry, BowlingEntry, BallData, MatchPlayer, PhotoItem, AboutData, AboutSkill, AboutCertification } from "@/types/cricket";
 
 const SEED_MATCHES: Match[] = [
@@ -144,63 +144,21 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | null>(null);
 
-const DATA_VERSION = "v6"; // bump to force refresh seed data
-
-function load<T>(key: string, seed: T): T {
-  const versionKey = key + "_version";
-  const storedVersion = localStorage.getItem(versionKey);
-  if (storedVersion === DATA_VERSION) {
-    const stored = localStorage.getItem(key);
-    if (stored) return JSON.parse(stored);
-  }
-  localStorage.setItem(key, JSON.stringify(seed));
-  localStorage.setItem(versionKey, DATA_VERSION);
-  return seed;
-}
-
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [matches, setMatches] = useState<Match[]>(() => load("srp_matches", SEED_MATCHES));
-  const [players, setPlayers] = useState<Player[]>(() => load("srp_players", SEED_PLAYERS));
-  const [news, setNews] = useState<NewsItem[]>(() => load("srp_news", SEED_NEWS));
-  const [batting, setBatting] = useState<BattingEntry[]>(() => load("srp_batting", SEED_BATTING));
-  const [bowling, setBowling] = useState<BowlingEntry[]>(() => load("srp_bowling", SEED_BOWLING));
-  const [balls, setBalls] = useState<BallData[]>(() => load("srp_balls", SEED_BALLS));
-  const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>(() => load("srp_match_players", SEED_MATCH_PLAYERS));
-  const [photos, setPhotos] = useState<PhotoItem[]>(() => load("srp_photos", SEED_PHOTOS));
-  const [aboutData, setAboutData] = useState<AboutData>(() => load("srp_about", SEED_ABOUT));
+  // Initialize state from seed data (in-memory only, no localStorage)
+  const [matches, setMatches] = useState<Match[]>(SEED_MATCHES);
+  const [players, setPlayers] = useState<Player[]>(SEED_PLAYERS);
+  const [news, setNews] = useState<NewsItem[]>(SEED_NEWS);
+  const [batting, setBatting] = useState<BattingEntry[]>(SEED_BATTING);
+  const [bowling, setBowling] = useState<BowlingEntry[]>(SEED_BOWLING);
+  const [balls, setBalls] = useState<BallData[]>(SEED_BALLS);
+  const [matchPlayers, setMatchPlayers] = useState<MatchPlayer[]>(SEED_MATCH_PLAYERS);
+  const [photos, setPhotos] = useState<PhotoItem[]>(SEED_PHOTOS);
+  const [aboutData, setAboutData] = useState<AboutData>(SEED_ABOUT);
 
-  useEffect(() => localStorage.setItem("srp_matches", JSON.stringify(matches)), [matches]);
-  useEffect(() => localStorage.setItem("srp_players", JSON.stringify(players)), [players]);
-  useEffect(() => localStorage.setItem("srp_news", JSON.stringify(news)), [news]);
-  useEffect(() => localStorage.setItem("srp_batting", JSON.stringify(batting)), [batting]);
-  useEffect(() => localStorage.setItem("srp_bowling", JSON.stringify(bowling)), [bowling]);
-  useEffect(() => localStorage.setItem("srp_balls", JSON.stringify(balls)), [balls]);
-  useEffect(() => localStorage.setItem("srp_match_players", JSON.stringify(matchPlayers)), [matchPlayers]);
-  useEffect(() => localStorage.setItem("srp_photos", JSON.stringify(photos)), [photos]);
-  useEffect(() => localStorage.setItem("srp_about", JSON.stringify(aboutData)), [aboutData]);
-
-  // Cross-tab sync: listen for localStorage changes from other tabs
-  useEffect(() => {
-    const handler = (e: StorageEvent) => {
-      if (!e.key || !e.newValue) return;
-      try {
-        const data = JSON.parse(e.newValue);
-        switch (e.key) {
-          case "srp_matches": setMatches(data); break;
-          case "srp_players": setPlayers(data); break;
-          case "srp_news": setNews(data); break;
-          case "srp_batting": setBatting(data); break;
-          case "srp_bowling": setBowling(data); break;
-          case "srp_balls": setBalls(data); break;
-          case "srp_match_players": setMatchPlayers(data); break;
-          case "srp_photos": setPhotos(data); break;
-          case "srp_about": setAboutData(data); break;
-        }
-      } catch {}
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
+  // ✅ NO LOCALSTORAGE: All data comes from database (Supabase) via services
+  // Data is NOT persisted locally - only in memory during this session
+  // Real-time sync is handled by Supabase real-time subscriptions
 
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
