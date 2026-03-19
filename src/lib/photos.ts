@@ -308,8 +308,7 @@ export async function deletePhoto(photoId: string, storagePath: string): Promise
     const { error: dbError } = await supabase
       .from('photos')
       .delete()
-      .eq('id', photoId)
-      .eq('uploaded_by', user.id); // Ensure user can only delete their own photos
+      .eq('id', photoId);
 
     if (dbError) {
       return {
