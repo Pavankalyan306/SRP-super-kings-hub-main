@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
+import { useMatches, useCreateMatch, useUpdateMatch, useDeleteMatch } from "@/hooks/useMatches";
+import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer } from "@/hooks/usePlayers";
 import { Match, Player, NewsItem } from "@/types/cricket";
 import { motion } from "framer-motion";
 import { LogOut, Plus, Pencil, Trash2, Trophy, Users, Newspaper, Activity, TrendingUp, ClipboardList, UserPlus, Zap, Image, User } from "lucide-react";
@@ -98,7 +100,12 @@ export default function Admin() {
 
 /* ---- Matches Admin ---- */
 function MatchesAdmin() {
-  const { matches, addMatch, updateMatch, deleteMatch } = useData();
+  // Use Supabase hooks for database operations
+  const { data: matches = [], isLoading } = useMatches();
+  const { mutate: createMatch } = useCreateMatch();
+  const { mutate: updateMatch } = useUpdateMatch();
+  const { mutate: deleteMatch } = useDeleteMatch();
+  
   const [editing, setEditing] = useState<Match | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -111,8 +118,11 @@ function MatchesAdmin() {
 
   const save = () => {
     if (!form.teamA || !form.teamB || !form.date) return;
-    if (editing) { updateMatch({ ...form }); }
-    else { addMatch(form); }
+    if (editing) { 
+      updateMatch({ matchId: form.id, updates: form });
+    } else { 
+      createMatch(form);
+    }
     cancel();
   };
 
@@ -151,26 +161,41 @@ function MatchesAdmin() {
       )}
 
       <div className="space-y-3">
-        {matches.map((m) => (
-          <div key={m.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
-            <div>
-              <p className="font-heading font-semibold text-foreground">{m.teamA} vs {m.teamB}</p>
-              <p className="text-xs text-muted-foreground">{m.date} · {m.status}</p>
+        {isLoading ? (
+          <p className="text-muted-foreground">Loading matches...</p>
+        ) : matches.length === 0 ? (
+          <p className="text-muted-foreground">No matches yet</p>
+        ) : (
+          matches.map((m) => (
+            <div key={m.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <p className="font-heading font-semibold text-foreground">{m.teamA} vs {m.teamB}</p>
+                <p className="text-xs text-muted-foreground">{m.date} · {m.status}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => startEdit(m)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                <button onClick={() => deleteMatch(m.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => startEdit(m)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
-              <button onClick={() => deleteMatch(m.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
 }
 
 /* ---- Players Admin ---- */
+/* ---- Players Admin ---- */
 function PlayersAdmin() {
-  const { players, addPlayer, updatePlayer, deletePlayer, balls, matchPlayers, matches } = useData();
+  // Use Supabase hooks for database operations
+  const { data: players = [], isLoading } = usePlayers();
+  const { mutate: createPlayer } = useCreatePlayer();
+  const { mutate: updatePlayer } = useUpdatePlayer();
+  const { mutate: deletePlayer } = useDeletePlayer();
+  
+  // Get match data from DataContext (for stats computation)
+  const { balls, matchPlayers, matches } = useData();
+  
   const [editing, setEditing] = useState<Player | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -191,8 +216,11 @@ function PlayersAdmin() {
 
   const save = () => {
     if (!form.name) return;
-    if (editing) { updatePlayer({ ...form }); }
-    else { addPlayer(form); }
+    if (editing) { 
+      updatePlayer({ playerId: form.id, updates: form });
+    } else { 
+      createPlayer(form);
+    }
     cancel();
   };
 
@@ -255,24 +283,30 @@ function PlayersAdmin() {
       )}
 
       <div className="space-y-3">
-        {players.map((p) => {
-          const stats = getPlayerStats(p.id);
-          return (
-            <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {p.image ? <img src={p.image} alt={p.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-secondary" />}
-                <div>
-                  <p className="font-heading font-semibold text-foreground">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">{p.role} · {stats.matches}M · {stats.runs}R · {stats.wickets}W</p>
+        {isLoading ? (
+          <p className="text-muted-foreground">Loading players...</p>
+        ) : players.length === 0 ? (
+          <p className="text-muted-foreground">No players yet</p>
+        ) : (
+          players.map((p) => {
+            const stats = getPlayerStats(p.id);
+            return (
+              <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {p.image ? <img src={p.image} alt={p.name} className="w-10 h-10 rounded-full object-cover" /> : <div className="w-10 h-10 rounded-full bg-secondary" />}
+                  <div>
+                    <p className="font-heading font-semibold text-foreground">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.role} · {stats.matches}M · {stats.runs}R · {stats.wickets}W</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(p)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
+                  <button onClick={() => deletePlayer(p.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => startEdit(p)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => deletePlayer(p.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );
