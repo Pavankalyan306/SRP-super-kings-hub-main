@@ -1,10 +1,10 @@
-import { useData } from "@/context/DataContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity, RefreshCw } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
+import { useMatches } from "@/hooks/useMatches";
 
 export default function LiveScoresWidget() {
-  const { matches } = useData();
+  const { data: matches = [], isLoading } = useMatches();
   const [tick, setTick] = useState(0);
   const hasLive = useRef(false);
 

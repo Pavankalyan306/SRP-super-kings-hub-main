@@ -1,9 +1,18 @@
-import { useData } from "@/context/DataContext";
 import MatchCard from "@/components/MatchCard";
 import { motion } from "framer-motion";
+import { useMatches } from "@/hooks/useMatches";
 
 export default function Matches() {
-  const { matches } = useData();
+  const { data: matches = [], isLoading, isError, error } = useMatches();
+
+  if (isLoading) {
+    return <div className="container py-10">Loading matches...</div>;
+  }
+
+  if (isError) {
+    return <div className="container py-10">Failed to load matches: {error?.message}</div>;
+  }
+
   const live = matches.filter((m) => m.status === "live");
   const upcoming = matches.filter((m) => m.status === "upcoming");
   const completed = matches.filter((m) => m.status === "completed");

@@ -5,10 +5,21 @@ import { useData } from "@/context/DataContext";
 import MatchCard from "@/components/MatchCard";
 import NewsCard from "@/components/NewsCard";
 import LiveScoresWidget from "@/components/LiveScoresWidget";
+import { useMatches } from "@/hooks/useMatches";
 import heroBg from "@/assets/hero-cricket.jpg";
 
 export default function Index() {
-  const { matches, news } = useData();
+  const { data: matches = [], isLoading, isError, error } = useMatches();
+  const { news } = useData();
+
+  if (isLoading) {
+    return <div className="container py-10">Loading matches...</div>;
+  }
+
+  if (isError) {
+    return <div className="container py-10">Failed to load matches: {error?.message}</div>;
+  }
+
   const liveOrRecent = matches.filter((m) => m.status === "live" || m.status === "completed").slice(0, 2);
   const upcoming = matches.filter((m) => m.status === "upcoming").slice(0, 2);
   const latestNews = news.slice(0, 3);

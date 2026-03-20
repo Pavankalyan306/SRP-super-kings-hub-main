@@ -3,6 +3,9 @@ import { useData } from "@/context/DataContext";
 import { calculateInningsScore, calculateBattingStats, calculateBowlingStats } from "@/lib/scoreCalculator";
 import { motion } from "framer-motion";
 import { ArrowLeft, MapPin, Calendar, Activity, User, Star, Shield, Coins } from "lucide-react";
+import { useMatch, useMatches } from "@/hooks/useMatches";
+import { useBallsByMatch } from "@/hooks/useBalls";
+import { usePlayers } from "@/hooks/usePlayers";
 
 const BALL_COLORS: Record<string, string> = {
   "0": "bg-muted text-muted-foreground",
@@ -18,9 +21,40 @@ const BALL_COLORS: Record<string, string> = {
 
 export default function Scorecard() {
   const { matchId } = useParams<{ matchId: string }>();
-  const { matches, batting, bowling, balls, matchPlayers, players } = useData();
+  const { batting, bowling, balls: localBalls, matchPlayers } = useData();
+  const { data: match, isLoading: matchLoading, isError: matchError, error: matchErrorObj } = useMatch(matchId);
+  const { data: balls = [] } = useBallsByMatch(matchId);
+  const { data: players = [] } = usePlayers();
 
-  const match = matches.find((m) => m.id === matchId);
+  const matchBallsFromApi = Array.isArray(balls)
+    ? balls.map((b: any) => ({
+        id: b.id || `${b.match_id || b.matchId}-${b.over_number || b.over}-${b.ball_number || b.ball}`,
+        matchId: b.match_id || b.matchId || "",
+        innings: b.innings || "A",
+        over: b.over_number ?? b.over,
+        ball: b.ball_number ?? b.ball,
+        result: b.result || (b.wicket ? "W" : `${b.runs ?? 0}`),
+        batter: b.batsman_id || b.batter,
+        bowler: b.bowler_id || b.bowler,
+      }))
+    : [];
+
+  // prefer DB ball records, but if not available use in-memory seeded records
+  const matchBallsData = matchBallsFromApi.length > 0 ? matchBallsFromApi : localBalls;
+
+  if (matchLoading) {
+    return <div className="container py-20 text-center">Loading match...</div>;
+  }
+
+  if (matchError) {
+    return (
+      <div className="container py-20 text-center">
+        <p className="text-destructive">Failed to load match: {matchErrorObj?.message}</p>
+        <Link to="/matches" className="text-primary underline mt-4 inline-block">← Back to Matches</Link>
+      </div>
+    );
+  }
+
   if (!match) {
     return (
       <div className="container py-20 text-center">
@@ -32,7 +66,7 @@ export default function Scorecard() {
 
   const matchBatting = batting.filter((b) => b.matchId === matchId);
   const matchBowling = bowling.filter((b) => b.matchId === matchId);
-  const matchBalls = balls.filter((b) => b.matchId === matchId).sort((a, b) => a.over - b.over || a.ball - b.ball);
+  const matchBalls = matchBallsData.filter((b) => b.matchId === matchId).sort((a, b) => a.over - b.over || a.ball - b.ball);
 
   const assigned = matchPlayers.filter((mp) => mp.matchId === matchId);
   const squadA = assigned.filter((mp) => mp.team === "A");
