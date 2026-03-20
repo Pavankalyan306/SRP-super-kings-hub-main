@@ -1,13 +1,10 @@
 -- ⚠️ DESTRUCTIVE OPERATION: Clears and resets all players
 -- Run this in Supabase SQL Editor to reset player database with fresh data
 
--- Step 1: Delete all existing player records
-DELETE FROM players;
+-- Step 1: Truncate table and reset identity (safer than DELETE + ALTER SEQUENCE)
+TRUNCATE TABLE players RESTART IDENTITY CASCADE;
 
--- Step 2: Reset sequence counter (PostgreSQL)
-ALTER SEQUENCE players_id_seq RESTART WITH 1;
-
--- Step 3: Insert all 22 squad players with their roles
+-- Step 2: Insert all 22 squad players with their roles
 INSERT INTO players (name, role, matches, runs, wickets, strike_rate, jersey_number, created_at) VALUES
 ('Murali', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
 ('Sanju', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
@@ -32,6 +29,6 @@ INSERT INTO players (name, role, matches, runs, wickets, strike_rate, jersey_num
 ('Chinnu', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
 ('Babulu', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW());
 
--- Step 4: Verify insertion
+-- Step 3: Verify insertion
 SELECT COUNT(*) as total_players FROM players;
 SELECT name, role FROM players ORDER BY name;
