@@ -1,34 +1,62 @@
--- ⚠️ DESTRUCTIVE OPERATION: Clears and resets all players
--- Run this in Supabase SQL Editor to reset player database with fresh data
+-- ⚠️ DESTRUCTIVE OPERATION: Resets players and player_stats
+-- SQL schema adjusted to match actual Supabase structure
+-- Run this in Supabase SQL Editor
 
--- Step 1: Truncate table and reset identity (safer than DELETE + ALTER SEQUENCE)
-TRUNCATE TABLE players RESTART IDENTITY CASCADE;
+-- Step 1: Delete existing players and player_stats (cascade will handle it)
+DELETE FROM player_stats WHERE player_id IN (SELECT id FROM players);
+DELETE FROM players;
 
--- Step 2: Insert all 22 squad players with their roles
-INSERT INTO players (name, role, matches, runs, wickets, strike_rate, jersey_number, created_at) VALUES
-('Murali', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Sanju', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Sravan', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('Sampat', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Birla', 'Bowler', 0, 0, 0, 0.0, NULL, NOW()),
-('Shiva', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('Laddu', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Surya', 'Bowler', 0, 0, 0, 0.0, NULL, NOW()),
-('Vamsi', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Praveen', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('C K', 'Bowler', 0, 0, 0, 0.0, NULL, NOW()),
-('Abhail', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Govindha', 'Bowler', 0, 0, 0, 0.0, NULL, NOW()),
-('Manigada', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('Vinu', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Mahesh', 'Bowler', 0, 0, 0, 0.0, NULL, NOW()),
-('Madhu', 'Wicket Keeper', 0, 0, 0, 0.0, NULL, NOW()),
-('Charan', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('Pavan Kalyan', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('C Charan', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW()),
-('Chinnu', 'Batsman', 0, 0, 0, 0.0, NULL, NOW()),
-('Babulu', 'All-rounder', 0, 0, 0, 0.0, NULL, NOW());
+-- Step 2: Ensure a default team exists
+INSERT INTO teams (name, logo) VALUES ('SRP Super Kings', NULL)
+ON CONFLICT DO NOTHING;
 
--- Step 3: Verify insertion
+-- Step 3: Get the team ID
+WITH team_info AS (
+  SELECT id FROM teams WHERE name = 'SRP Super Kings' LIMIT 1
+)
+
+-- Step 4: Insert all 22 squad players
+INSERT INTO players (name, role, team_id, created_at)
+SELECT 
+  player_data.name,
+  player_data.role,
+  team_info.id,
+  NOW()
+FROM (
+  VALUES 
+    ('Murali', 'Batsman'),
+    ('Sanju', 'Batsman'),
+    ('Sravan', 'All-rounder'),
+    ('Sampat', 'Batsman'),
+    ('Birla', 'Bowler'),
+    ('Shiva', 'All-rounder'),
+    ('Laddu', 'Batsman'),
+    ('Surya', 'Bowler'),
+    ('Vamsi', 'Batsman'),
+    ('Praveen', 'All-rounder'),
+    ('C K', 'Bowler'),
+    ('Abhail', 'Batsman'),
+    ('Govindha', 'Bowler'),
+    ('Manigada', 'All-rounder'),
+    ('Vinu', 'Batsman'),
+    ('Mahesh', 'Bowler'),
+    ('Madhu', 'Wicket Keeper'),
+    ('Charan', 'All-rounder'),
+    ('Pavan Kalyan', 'Batsman'),
+    ('C Charan', 'All-rounder'),
+    ('Chinnu', 'Batsman'),
+    ('Babulu', 'All-rounder')
+) AS player_data(name, role),
+team_info;
+
+-- Step 5: Create player_stats for each player (stats initialized to 0)
+INSERT INTO player_stats (player_id, matches, runs, wickets, strike_rate, economy)
+SELECT id, 0, 0, 0, 0.0, 0.0
+FROM players
+WHERE NOT EXISTS (
+  SELECT 1 FROM player_stats WHERE player_stats.player_id = players.id
+);
+
+-- Step 6: Verify insertion
 SELECT COUNT(*) as total_players FROM players;
 SELECT name, role FROM players ORDER BY name;

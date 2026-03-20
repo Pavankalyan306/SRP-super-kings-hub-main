@@ -18,13 +18,13 @@ export interface PlayerStats {
 }
 
 /**
- * Fetch all players from Supabase
+ * Fetch all players from Supabase with their stats
  */
 export async function fetchPlayers(): Promise<FetchPlayersResponse> {
   try {
     const { data, error } = await supabase
       .from('players')
-      .select('*')
+      .select('*, player_stats(*)')
       .order('name', { ascending: true });
 
     if (error) {
@@ -36,8 +36,21 @@ export async function fetchPlayers(): Promise<FetchPlayersResponse> {
       };
     }
 
+    // Transform data to flatten player_stats
+    const transformedData = (data as any[])?.map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role || 'Batsman',
+      image: p.image,
+      jerseyNumber: p.jersey_number,
+      matches: p.player_stats?.[0]?.matches || 0,
+      runs: p.player_stats?.[0]?.runs || 0,
+      wickets: p.player_stats?.[0]?.wickets || 0,
+      strikeRate: p.player_stats?.[0]?.strike_rate || 0,
+    })) as Player[];
+
     return {
-      data: data as Player[] | null,
+      data: transformedData,
       error: null,
       isLoading: false,
     };
@@ -53,13 +66,13 @@ export async function fetchPlayers(): Promise<FetchPlayersResponse> {
 }
 
 /**
- * Fetch a single player by ID
+ * Fetch a single player by ID with stats
  */
 export async function fetchPlayerById(playerId: string): Promise<FetchPlayersResponse> {
   try {
     const { data, error } = await supabase
       .from('players')
-      .select('*')
+      .select('*, player_stats(*)')
       .eq('id', playerId)
       .single();
 
@@ -72,8 +85,21 @@ export async function fetchPlayerById(playerId: string): Promise<FetchPlayersRes
       };
     }
 
+    // Transform data
+    const transformed = {
+      id: data.id,
+      name: data.name,
+      role: data.role || 'Batsman',
+      image: data.image,
+      jerseyNumber: data.jersey_number,
+      matches: data.player_stats?.[0]?.matches || 0,
+      runs: data.player_stats?.[0]?.runs || 0,
+      wickets: data.player_stats?.[0]?.wickets || 0,
+      strikeRate: data.player_stats?.[0]?.strike_rate || 0,
+    } as Player;
+
     return {
-      data: data ? [data as Player] : null,
+      data: [transformed],
       error: null,
       isLoading: false,
     };
@@ -89,13 +115,13 @@ export async function fetchPlayerById(playerId: string): Promise<FetchPlayersRes
 }
 
 /**
- * Fetch players by role
+ * Fetch players by role with stats
  */
 export async function fetchPlayersByRole(role: string): Promise<FetchPlayersResponse> {
   try {
     const { data, error } = await supabase
       .from('players')
-      .select('*')
+      .select('*, player_stats(*)')
       .eq('role', role)
       .order('name', { ascending: true });
 
@@ -108,8 +134,21 @@ export async function fetchPlayersByRole(role: string): Promise<FetchPlayersResp
       };
     }
 
+    // Transform data
+    const transformedData = (data as any[])?.map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role || 'Batsman',
+      image: p.image,
+      jerseyNumber: p.jersey_number,
+      matches: p.player_stats?.[0]?.matches || 0,
+      runs: p.player_stats?.[0]?.runs || 0,
+      wickets: p.player_stats?.[0]?.wickets || 0,
+      strikeRate: p.player_stats?.[0]?.strike_rate || 0,
+    })) as Player[];
+
     return {
-      data: data as Player[] | null,
+      data: transformedData,
       error: null,
       isLoading: false,
     };
