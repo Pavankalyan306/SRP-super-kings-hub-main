@@ -1,17 +1,30 @@
-import { useData } from "@/context/DataContext";
 import PlayerCard from "@/components/PlayerCard";
 import { motion } from "framer-motion";
 import { useMemo } from "react";
 import { Player } from "@/types/cricket";
+import { usePlayers } from "@/hooks/usePlayers";
+import { useMatches } from "@/hooks/useMatches";
+import { useBallsByMatch } from "@/hooks/useBalls";
+import { useData } from "@/context/DataContext";
 
 /** Derive all player stats from ball-by-ball data across every match */
 function useComputedPlayers() {
-  const { players, balls, matchPlayers, matches } = useData();
+  const { data: players = [], isLoading: playersLoading } = usePlayers();
+  const { data: matches = [], isLoading: matchesLoading } = useMatches();
+  const { matchPlayers } = useData();
+  
+  // Fetch balls for each match (in-memory fallback for now)
+  const { balls: localBalls } = useData();
 
   return useMemo(() => {
+    // If still loading or no data, return empty
+    if (playersLoading || matchesLoading || !players || players.length === 0) {
+      return players || [];
+    }
+
     // If no matches exist, all stats are zero
     const validMatchIds = new Set(matches.map((m) => m.id));
-    const validBalls = balls.filter((b) => validMatchIds.has(b.matchId));
+    const validBalls = localBalls.filter((b) => validMatchIds.has(b.matchId));
 
     return players.map((p): Player => {
       if (matches.length === 0) {
@@ -60,7 +73,7 @@ function useComputedPlayers() {
         strikeRate,
       };
     });
-  }, [players, balls, matchPlayers, matches]);
+  }, [players, localBalls, matchPlayers, matches, playersLoading, matchesLoading]);
 }
 
 function OverallPerformance({ players, matchCount }: { players: Player[]; matchCount: number }) {
@@ -121,8 +134,21 @@ function OverallPerformance({ players, matchCount }: { players: Player[]; matchC
 }
 
 export default function Players() {
-  const { matches } = useData();
+  const { data: matches = [], isLoading: matchesLoading, isError: matchesError, error: matchErrorObj } = useMatches();
+  const { data: players = [], isLoading: playersLoading, isError: playersError, error: playersErrorObj } = usePlayers();
   const computedPlayers = useComputedPlayers();
+
+  const isLoading = playersLoading || matchesLoading;
+  const isError = playersError || matchesError;
+  const errorMsg = playersErrorObj?.message || matchErrorObj?.message || "Failed to load data";
+
+  if (isLoading) {
+    return <div className="container py-10">Loading players...</div>;
+  }
+
+  if (isError) {
+    return <div className="container py-10">Error: {errorMsg}</div>;
+  }
 
   return (
     <div className="container py-10">
