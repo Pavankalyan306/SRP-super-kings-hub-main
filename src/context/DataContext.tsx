@@ -1,11 +1,7 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { Match, Player, NewsItem, BattingEntry, BowlingEntry, BallData, MatchPlayer, PhotoItem, AboutData, AboutSkill, AboutCertification } from "@/types/cricket";
 
-const SEED_MATCHES: Match[] = [
-  { id: "1", teamA: "SRP Super Kings", teamB: "Royal Challengers", date: "2026-02-20", status: "upcoming", venue: "SRP Stadium" },
-  { id: "2", teamA: "SRP Super Kings", teamB: "Mumbai Warriors", date: "2026-02-15", status: "completed", venue: "SRP Stadium", scoreA: "185/4", scoreB: "170/8", oversA: "20", oversB: "20", result: "SRP Super Kings won by 15 runs" },
-  { id: "3", teamA: "SRP Super Kings", teamB: "Delhi Capitals", date: "2026-02-18", status: "live", venue: "SRP Stadium", scoreA: "142/3", oversA: "16.2" },
-];
+const SEED_MATCHES: Match[] = [];
 
 const SEED_PLAYERS: Player[] = [
   { id: "1", name: "Murali", role: "Batsman", matches: 0, runs: 0, wickets: 0, strikeRate: 0 },

@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useMatches, useCreateMatch, useUpdateMatch, useDeleteMatch } from "@/hooks/useMatches";
 import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer } from "@/hooks/usePlayers";
+import { uploadPlayerProfileImage } from "@/lib/players";
 import { Match, Player, NewsItem } from "@/types/cricket";
 import { motion } from "framer-motion";
 import { LogOut, Plus, Pencil, Trash2, Trophy, Users, Newspaper, Activity, TrendingUp, ClipboardList, UserPlus, Zap, Image, User } from "lucide-react";
@@ -18,6 +19,8 @@ type Tab = "matches" | "players" | "news" | "scorecard" | "teams" | "live" | "ph
 export default function Admin() {
   const { isAdmin, logout } = useAuth();
   const data = useData();
+  const { data: dashboardMatches = [] } = useMatches();
+  const { data: dashboardPlayers = [] } = usePlayers();
   const [tab, setTab] = useState<Tab>("matches");
 
   if (!isAdmin) return <Navigate to="/admin/login" replace />;
@@ -33,13 +36,13 @@ export default function Admin() {
     { key: "about", label: "About Page", icon: User },
   ];
 
-  const liveCount = data.matches.filter((m) => m.status === "live").length;
-  const upcomingCount = data.matches.filter((m) => m.status === "upcoming").length;
+  const liveCount = dashboardMatches.filter((m) => m.status === "live").length;
+  const upcomingCount = dashboardMatches.filter((m) => m.status === "upcoming").length;
 
   const kpis = [
     { label: "Live Matches", value: liveCount, icon: Activity, accent: liveCount > 0 ? "text-destructive" : "text-muted-foreground", pulse: liveCount > 0 },
-    { label: "Total Matches", value: data.matches.length, icon: Trophy, accent: "text-primary" },
-    { label: "Total Players", value: data.players.length, icon: Users, accent: "text-primary" },
+    { label: "Total Matches", value: dashboardMatches.length, icon: Trophy, accent: "text-primary" },
+    { label: "Total Players", value: dashboardPlayers.length, icon: Users, accent: "text-primary" },
     { label: "News Articles", value: data.news.length, icon: Newspaper, accent: "text-primary" },
     { label: "Upcoming", value: upcomingCount, icon: TrendingUp, accent: "text-accent" },
   ];
@@ -189,8 +192,8 @@ function MatchesAdmin() {
 function PlayersAdmin() {
   // Use Supabase hooks for database operations
   const { data: players = [], isLoading } = usePlayers();
-  const { mutate: createPlayer } = useCreatePlayer();
-  const { mutate: updatePlayer } = useUpdatePlayer();
+  const { mutateAsync: createPlayer } = useCreatePlayer();
+  const { mutateAsync: updatePlayer } = useUpdatePlayer();
   const { mutate: deletePlayer } = useDeletePlayer();
   
   // Get match data from DataContext (for stats computation)
@@ -198,30 +201,52 @@ function PlayersAdmin() {
   
   const [editing, setEditing] = useState<Player | null>(null);
   const [adding, setAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const empty: Omit<Player, "id"> = { name: "", role: "Batsman", matches: 0, runs: 0, wickets: 0, strikeRate: 0, image: "", jerseyNumber: 0 };
   const [form, setForm] = useState<any>(empty);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
-  const startAdd = () => { setForm(empty); setAdding(true); setEditing(null); };
-  const startEdit = (p: Player) => { setForm(p); setEditing(p); setAdding(false); };
-  const cancel = () => { setAdding(false); setEditing(null); };
+  const startAdd = () => { setForm(empty); setImageFile(null); setAdding(true); setEditing(null); };
+  const startEdit = (p: Player) => { setForm(p); setImageFile(null); setEditing(p); setAdding(false); };
+  const cancel = () => { setAdding(false); setEditing(null); setImageFile(null); };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImageFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setForm({ ...form, image: ev.target?.result as string });
     reader.readAsDataURL(file);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.name) return;
-    if (editing) { 
-      updatePlayer({ playerId: form.id, updates: form });
-    } else { 
-      createPlayer(form);
+    setIsSaving(true);
+    try {
+      let imageUrl = form.image;
+      if (imageFile) {
+        const uploadResult = await uploadPlayerProfileImage(imageFile);
+        if (!uploadResult.success || !uploadResult.url) {
+          alert(uploadResult.error || "Failed to upload player image");
+          return;
+        }
+        imageUrl = uploadResult.url;
+      }
+
+      const payload = { ...form, image: imageUrl };
+
+      if (editing) {
+        await updatePlayer({ playerId: form.id, updates: payload });
+      } else {
+        await createPlayer(payload);
+      }
+
+      setImageFile(null);
+      cancel();
+    } finally {
+      setIsSaving(false);
     }
-    cancel();
   };
 
   /** Compute stats dynamically from ball data — only for existing matches */
@@ -276,8 +301,8 @@ function PlayersAdmin() {
           </div>
           <p className="text-xs text-muted-foreground italic">Stats (runs, wickets, matches) are calculated automatically from match data.</p>
           <div className="flex gap-2">
-            <button onClick={save} className="gradient-gold text-primary-foreground font-semibold px-6 py-2 rounded-md hover:opacity-90 transition-opacity">Save</button>
-            <button onClick={cancel} className="bg-secondary text-secondary-foreground px-6 py-2 rounded-md hover:opacity-80 transition-opacity">Cancel</button>
+            <button onClick={save} disabled={isSaving} className="gradient-gold text-primary-foreground font-semibold px-6 py-2 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50">{isSaving ? "Saving..." : "Save"}</button>
+            <button onClick={cancel} disabled={isSaving} className="bg-secondary text-secondary-foreground px-6 py-2 rounded-md hover:opacity-80 transition-opacity disabled:opacity-50">Cancel</button>
           </div>
         </motion.div>
       )}

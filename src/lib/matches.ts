@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { Match } from '@/types/cricket';
+import { supabase } from "./supabase";
+import { Match } from "@/types/cricket";
 
 export interface FetchMatchesResponse {
   data: Match[] | null;
@@ -7,225 +7,169 @@ export interface FetchMatchesResponse {
   isLoading: boolean;
 }
 
-/**
- * Fetch all matches from Supabase
- */
+const statusToUi = (status?: string): Match["status"] => {
+  if (status === "live") return "live";
+  if (status === "completed") return "completed";
+  return "upcoming";
+};
+
+const statusToDb = (status?: Match["status"]): string => {
+  if (status === "live") return "live";
+  if (status === "completed") return "completed";
+  return "scheduled";
+};
+
+const mapMatchRow = (row: any): Match => ({
+  id: row.id,
+  teamA: row.team1?.name || "Team A",
+  teamB: row.team2?.name || "Team B",
+  date: row.match_date ? new Date(row.match_date).toISOString().slice(0, 10) : "",
+  status: statusToUi(row.status),
+  venue: row.venue || "",
+  scoreA: "",
+  scoreB: "",
+  oversA: "",
+  oversB: "",
+  result: "",
+});
+
+async function ensureTeam(name: string): Promise<string> {
+  const trimmed = name.trim();
+  const { data: existing, error: fetchErr } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("name", trimmed)
+    .maybeSingle();
+
+  if (fetchErr) throw new Error(fetchErr.message);
+  if (existing?.id) return existing.id;
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from("teams")
+    .insert([{ name: trimmed }])
+    .select("id")
+    .single();
+
+  if (insertErr || !inserted) throw new Error(insertErr?.message || "Failed to create team");
+  return inserted.id;
+}
+
 export async function fetchMatches(): Promise<FetchMatchesResponse> {
   try {
     const { data, error } = await supabase
-      .from('matches')
-      .select('*');
+      .from("matches")
+      .select("*, team1:teams!matches_team1_id_fkey(name), team2:teams!matches_team2_id_fkey(name)");
 
     if (error) {
-      console.error('Error fetching matches:', error);
-      return {
-        data: null,
-        error: error.message || 'Failed to fetch matches',
-        isLoading: false,
-      };
+      return { data: null, error: error.message || "Failed to fetch matches", isLoading: false };
     }
 
-    return {
-      data: data as Match[] | null,
-      error: null,
-      isLoading: false,
-    };
+    return { data: ((data as any[]) || []).map(mapMatchRow), error: null, isLoading: false };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error('Error fetching matches:', errorMessage);
-    return {
-      data: null,
-      error: errorMessage,
-      isLoading: false,
-    };
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    return { data: null, error: errorMessage, isLoading: false };
   }
 }
 
-/**
- * Fetch a single match by ID
- */
 export async function fetchMatchById(matchId: string): Promise<FetchMatchesResponse> {
   try {
     const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('id', matchId)
+      .from("matches")
+      .select("*, team1:teams!matches_team1_id_fkey(name), team2:teams!matches_team2_id_fkey(name)")
+      .eq("id", matchId)
       .single();
 
     if (error) {
-      console.error(`Error fetching match ${matchId}:`, error);
-      return {
-        data: null,
-        error: error.message || `Failed to fetch match ${matchId}`,
-        isLoading: false,
-      };
+      return { data: null, error: error.message || `Failed to fetch match ${matchId}`, isLoading: false };
     }
 
-    return {
-      data: data ? [data as Match] : null,
-      error: null,
-      isLoading: false,
-    };
+    return { data: data ? [mapMatchRow(data)] : null, error: null, isLoading: false };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error(`Error fetching match ${matchId}:`, errorMessage);
-    return {
-      data: null,
-      error: errorMessage,
-      isLoading: false,
-    };
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    return { data: null, error: errorMessage, isLoading: false };
   }
 }
 
-/**
- * Fetch matches by status
- */
-export async function fetchMatchesByStatus(
-  status: 'upcoming' | 'live' | 'completed'
-): Promise<FetchMatchesResponse> {
+export async function fetchMatchesByStatus(status: Match["status"]): Promise<FetchMatchesResponse> {
   try {
     const { data, error } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('status', status);
+      .from("matches")
+      .select("*, team1:teams!matches_team1_id_fkey(name), team2:teams!matches_team2_id_fkey(name)")
+      .eq("status", statusToDb(status));
 
     if (error) {
-      console.error(`Error fetching ${status} matches:`, error);
-      return {
-        data: null,
-        error: error.message || `Failed to fetch ${status} matches`,
-        isLoading: false,
-      };
+      return { data: null, error: error.message || `Failed to fetch ${status} matches`, isLoading: false };
     }
 
-    return {
-      data: data as Match[] | null,
-      error: null,
-      isLoading: false,
-    };
+    return { data: ((data as any[]) || []).map(mapMatchRow), error: null, isLoading: false };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error(`Error fetching ${status} matches:`, errorMessage);
-    return {
-      data: null,
-      error: errorMessage,
-      isLoading: false,
-    };
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    return { data: null, error: errorMessage, isLoading: false };
   }
 }
 
-/**
- * Create a new match
- */
-export async function createMatch(matchData: Omit<Match, 'id'>): Promise<FetchMatchesResponse> {
+export async function createMatch(matchData: Omit<Match, "id">): Promise<FetchMatchesResponse> {
   try {
-    const { data, error } = await supabase
-      .from('matches')
-      .insert([matchData])
-      .select()
-      .single();
+    const team1_id = await ensureTeam(matchData.teamA);
+    const team2_id = await ensureTeam(matchData.teamB);
 
-    if (error) {
-      console.error('Error creating match:', error);
-      return {
-        data: null,
-        error: error.message || 'Failed to create match',
-        isLoading: false,
-      };
+    const payload = {
+      team1_id,
+      team2_id,
+      match_date: matchData.date || new Date().toISOString(),
+      venue: matchData.venue || "",
+      status: statusToDb(matchData.status),
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from("matches").insert([payload]).select("id").single();
+    if (error || !data?.id) {
+      return { data: null, error: error?.message || "Failed to create match", isLoading: false };
     }
-
-    return {
-      data: data ? [data as Match] : null,
-      error: null,
-      isLoading: false,
-    };
+    return fetchMatchById(data.id);
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error('Error creating match:', errorMessage);
-    return {
-      data: null,
-      error: errorMessage,
-      isLoading: false,
-    };
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    return { data: null, error: errorMessage, isLoading: false };
   }
 }
 
-/**
- * Update a match
- */
-export async function updateMatch(
-  matchId: string,
-  updates: Partial<Match>
-): Promise<FetchMatchesResponse> {
+export async function updateMatch(matchId: string, updates: Partial<Match>): Promise<FetchMatchesResponse> {
   try {
-    const { data, error } = await supabase
-      .from('matches')
-      .update(updates)
-      .eq('id', matchId)
-      .select()
-      .single();
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.teamA !== undefined) dbUpdates.team1_id = await ensureTeam(updates.teamA);
+    if (updates.teamB !== undefined) dbUpdates.team2_id = await ensureTeam(updates.teamB);
+    if (updates.date !== undefined) dbUpdates.match_date = updates.date;
+    if (updates.venue !== undefined) dbUpdates.venue = updates.venue;
+    if (updates.status !== undefined) dbUpdates.status = statusToDb(updates.status);
 
+    const { error } = await supabase.from("matches").update(dbUpdates).eq("id", matchId);
     if (error) {
-      console.error(`Error updating match ${matchId}:`, error);
-      return {
-        data: null,
-        error: error.message || `Failed to update match ${matchId}`,
-        isLoading: false,
-      };
+      return { data: null, error: error.message || `Failed to update match ${matchId}`, isLoading: false };
     }
-
-    return {
-      data: data ? [data as Match] : null,
-      error: null,
-      isLoading: false,
-    };
+    return fetchMatchById(matchId);
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error(`Error updating match ${matchId}:`, errorMessage);
-    return {
-      data: null,
-      error: errorMessage,
-      isLoading: false,
-    };
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    return { data: null, error: errorMessage, isLoading: false };
   }
 }
 
-/**
- * Delete a match
- */
 export async function deleteMatch(matchId: string): Promise<{ error: string | null }> {
   try {
-    const { error } = await supabase
-      .from('matches')
-      .delete()
-      .eq('id', matchId);
-
-    if (error) {
-      console.error(`Error deleting match ${matchId}:`, error);
-      return {
-        error: error.message || `Failed to delete match ${matchId}`,
-      };
-    }
-
-    return { error: null };
+    const { error } = await supabase.from("matches").delete().eq("id", matchId);
+    return { error: error ? error.message || `Failed to delete match ${matchId}` : null };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error(`Error deleting match ${matchId}:`, errorMessage);
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
     return { error: errorMessage };
   }
 }
 
-/**
- * Insert a new match (requires authentication)
- * Fields: team1_id, team2_id, status, match_date
- */
 export interface InsertMatchData {
   team1_id: string;
   team2_id: string;
-  status: 'upcoming' | 'live' | 'completed';
+  status: "upcoming" | "live" | "completed";
   match_date: string;
   venue?: string;
-  [key: string]: any; // Allow additional fields
+  [key: string]: any;
 }
 
 export interface InsertMatchResponse {
@@ -237,81 +181,49 @@ export interface InsertMatchResponse {
 
 export async function insertMatch(matchData: InsertMatchData): Promise<InsertMatchResponse> {
   try {
-    // Check if user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      console.error('User not authenticated');
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user) {
       return {
         success: false,
-        message: 'Authentication required to insert a match',
-        error: 'User is not authenticated. Please log in to create a match.',
+        message: "Authentication required to insert a match",
+        error: "User is not authenticated. Please log in to create a match.",
       };
     }
 
-    // Validate required fields
-    if (!matchData.team1_id || !matchData.team2_id) {
-      return {
-        success: false,
-        message: 'Missing required fields',
-        error: 'team1_id and team2_id are required',
-      };
-    }
-
-    if (!matchData.status || !['upcoming', 'live', 'completed'].includes(matchData.status)) {
-      return {
-        success: false,
-        message: 'Invalid status',
-        error: "Status must be 'upcoming', 'live', or 'completed'",
-      };
-    }
-
-    if (!matchData.match_date) {
-      return {
-        success: false,
-        message: 'Missing required field',
-        error: 'match_date is required',
-      };
-    }
-
-    // Insert the match
     const { data, error } = await supabase
-      .from('matches')
+      .from("matches")
       .insert([
         {
           team1_id: matchData.team1_id,
           team2_id: matchData.team2_id,
-          status: matchData.status,
+          status: statusToDb(matchData.status),
           match_date: matchData.match_date,
           venue: matchData.venue || null,
-          created_by: user.id,
           created_at: new Date().toISOString(),
-          ...matchData,
         },
       ])
-      .select()
+      .select("id")
       .single();
 
-    if (error) {
-      console.error('Error inserting match:', error);
+    if (error || !data?.id) {
       return {
         success: false,
-        message: 'Failed to insert match',
-        error: error.message || 'Database error occurred while inserting the match',
+        message: "Failed to insert match",
+        error: error?.message || "Database error occurred while inserting the match",
       };
     }
 
+    const fetched = await fetchMatchById(data.id);
     return {
       success: true,
-      message: 'Match created successfully',
-      data: data as Match,
+      message: "Match created successfully",
+      data: fetched.data?.[0],
     };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-    console.error('Error inserting match:', errorMessage);
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
     return {
       success: false,
-      message: 'An unexpected error occurred',
+      message: "An unexpected error occurred",
       error: errorMessage,
     };
   }

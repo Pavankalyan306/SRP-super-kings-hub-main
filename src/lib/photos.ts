@@ -11,6 +11,9 @@ export interface PhotoUploadData {
 
 export interface PhotoRecord {
   id: string;
+  image_url?: string;
+  caption?: string;
+  created_at?: string;
   url: string;
   file_name: string;
   file_size: number;
@@ -20,6 +23,7 @@ export interface PhotoRecord {
   description?: string;
   uploaded_by?: string;
   uploaded_at: string;
+  storage_path?: string;
   [key: string]: any;
 }
 
@@ -114,21 +118,18 @@ export async function uploadPhoto(photoData: PhotoUploadData): Promise<UploadPho
 
     const publicUrl = urlData.publicUrl;
 
-    // Save metadata to 'photos' table
+    const normalizedCaption = photoData.matchId
+      ? `[match:${photoData.matchId}] ${photoData.title || photoData.file.name}`
+      : (photoData.title || photoData.file.name);
+
+    // Save metadata to 'photos' table (real schema: image_url, caption, created_at)
     const { data: photoRecord, error: dbError } = await supabase
       .from('photos')
       .insert([
         {
-          url: publicUrl,
-          file_name: photoData.file.name,
-          file_size: photoData.file.size,
-          file_type: photoData.file.type,
-          storage_path: uploadData.path,
-          match_id: photoData.matchId || null,
-          title: photoData.title || null,
-          description: photoData.description || null,
-          uploaded_by: user.id,
-          uploaded_at: new Date().toISOString(),
+          image_url: publicUrl,
+          caption: normalizedCaption,
+          created_at: new Date().toISOString(),
         },
       ])
       .select()
@@ -145,10 +146,11 @@ export async function uploadPhoto(photoData: PhotoUploadData): Promise<UploadPho
       };
     }
 
+    const mappedRecord = mapPhotoRecord(photoRecord);
     return {
       success: true,
       message: 'Photo uploaded successfully',
-      data: photoRecord as PhotoRecord,
+      data: mappedRecord,
       url: publicUrl,
     };
   } catch (err) {
@@ -219,7 +221,7 @@ export async function fetchPhotos(): Promise<FetchPhotosResponse> {
     const { data, error } = await supabase
       .from('photos')
       .select('*')
-      .order('uploaded_at', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) {
       return {
@@ -232,7 +234,7 @@ export async function fetchPhotos(): Promise<FetchPhotosResponse> {
     return {
       success: true,
       message: 'Photos fetched successfully',
-      data: (data as PhotoRecord[]) || [],
+      data: ((data as any[]) || []).map(mapPhotoRecord),
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -252,8 +254,8 @@ export async function fetchPhotosByMatch(matchId: string): Promise<FetchPhotosRe
     const { data, error } = await supabase
       .from('photos')
       .select('*')
-      .eq('match_id', matchId)
-      .order('uploaded_at', { ascending: false });
+      .ilike('caption', `[match:${matchId}]%`)
+      .order('created_at', { ascending: false });
 
     if (error) {
       return {
@@ -266,7 +268,7 @@ export async function fetchPhotosByMatch(matchId: string): Promise<FetchPhotosRe
     return {
       success: true,
       message: 'Match photos fetched successfully',
-      data: (data as PhotoRecord[]) || [],
+      data: ((data as any[]) || []).map(mapPhotoRecord),
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -340,9 +342,15 @@ export async function updatePhotoMetadata(
   updates: Partial<PhotoRecord>
 ): Promise<UploadPhotoResponse> {
   try {
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.title !== undefined) dbUpdates.caption = updates.title;
+    if (updates.caption !== undefined) dbUpdates.caption = updates.caption;
+    if (updates.url !== undefined) dbUpdates.image_url = updates.url;
+    if (updates.image_url !== undefined) dbUpdates.image_url = updates.image_url;
+
     const { data, error } = await supabase
       .from('photos')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', photoId)
       .select()
       .single();
@@ -358,7 +366,7 @@ export async function updatePhotoMetadata(
     return {
       success: true,
       message: 'Photo updated successfully',
-      data: data as PhotoRecord,
+      data: mapPhotoRecord(data),
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -368,4 +376,32 @@ export async function updatePhotoMetadata(
       error: errorMessage,
     };
   }
+}
+
+function mapPhotoRecord(row: any): PhotoRecord {
+  const imageUrl = row?.image_url || row?.url || "";
+  const caption = row?.caption || "";
+  const matchIdMatch = typeof caption === "string" ? caption.match(/^\[match:([^\]]+)\]\s*/i) : null;
+  const matchId = matchIdMatch?.[1];
+  const title = typeof caption === "string" ? caption.replace(/^\[match:[^\]]+\]\s*/i, "") : "";
+  const storagePathMatch = typeof imageUrl === "string"
+    ? imageUrl.match(/\/storage\/v1\/object\/public\/photos\/(.+)$/)
+    : null;
+
+  return {
+    id: row?.id,
+    image_url: imageUrl,
+    caption,
+    created_at: row?.created_at,
+    url: imageUrl,
+    file_name: title || "photo",
+    file_size: 0,
+    file_type: "image/*",
+    match_id: matchId,
+    title,
+    description: "",
+    uploaded_by: undefined,
+    uploaded_at: row?.created_at || new Date().toISOString(),
+    storage_path: storagePathMatch?.[1] || "",
+  };
 }

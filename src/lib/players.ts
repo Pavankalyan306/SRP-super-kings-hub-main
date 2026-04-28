@@ -17,6 +17,48 @@ export interface PlayerStats {
   strikeRate: number;
 }
 
+export interface PlayerImageUploadResponse {
+  success: boolean;
+  url?: string;
+  error?: string;
+}
+
+export async function uploadPlayerProfileImage(file: File): Promise<PlayerImageUploadResponse> {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData?.user) {
+      return { success: false, error: "Authentication required" };
+    }
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      return { success: false, error: "Only JPEG, PNG, WebP, and GIF files are allowed" };
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      return { success: false, error: "File size must be less than 5MB" };
+    }
+
+    const ext = file.name.split(".").pop() || "jpg";
+    const filePath = `players/${authData.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("photos")
+      .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+    if (uploadError || !uploadData) {
+      return { success: false, error: uploadError?.message || "Failed to upload image" };
+    }
+
+    const { data: publicUrlData } = supabase.storage.from("photos").getPublicUrl(uploadData.path);
+    return { success: true, url: publicUrlData.publicUrl };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    return { success: false, error: errorMessage };
+  }
+}
+
 /**
  * Fetch all players from Supabase with their stats
  */
@@ -42,7 +84,7 @@ export async function fetchPlayers(): Promise<FetchPlayersResponse> {
       name: p.name,
       role: p.role || 'Batsman',
       image: p.image,
-      jerseyNumber: p.jersey_number,
+      jerseyNumber: undefined,
       matches: p.player_stats?.[0]?.matches || 0,
       runs: p.player_stats?.[0]?.runs || 0,
       wickets: p.player_stats?.[0]?.wickets || 0,
@@ -91,7 +133,7 @@ export async function fetchPlayerById(playerId: string): Promise<FetchPlayersRes
       name: data.name,
       role: data.role || 'Batsman',
       image: data.image,
-      jerseyNumber: data.jersey_number,
+      jerseyNumber: undefined,
       matches: data.player_stats?.[0]?.matches || 0,
       runs: data.player_stats?.[0]?.runs || 0,
       wickets: data.player_stats?.[0]?.wickets || 0,
@@ -140,7 +182,7 @@ export async function fetchPlayersByRole(role: string): Promise<FetchPlayersResp
       name: p.name,
       role: p.role || 'Batsman',
       image: p.image,
-      jerseyNumber: p.jersey_number,
+      jerseyNumber: undefined,
       matches: p.player_stats?.[0]?.matches || 0,
       runs: p.player_stats?.[0]?.runs || 0,
       wickets: p.player_stats?.[0]?.wickets || 0,
@@ -177,9 +219,15 @@ export async function createPlayer(playerData: Omit<Player, 'id'>): Promise<Fetc
       };
     }
 
+    const insertPayload = {
+      name: playerData.name,
+      role: playerData.role,
+      image: playerData.image || null,
+    };
+
     const { data, error } = await supabase
       .from('players')
-      .insert([playerData])
+      .insert([insertPayload])
       .select()
       .single();
 
@@ -225,9 +273,14 @@ export async function updatePlayer(
       };
     }
 
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.image !== undefined) dbUpdates.image = updates.image;
+
     const { data, error } = await supabase
       .from('players')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', playerId)
       .select()
       .single();

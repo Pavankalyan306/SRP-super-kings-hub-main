@@ -40,8 +40,8 @@ export default function PhotosAdmin() {
     setAdding(false);
   };
 
-  const handleDelete = (photoId: string) => {
-    deleteMutation.mutate(photoId);
+  const handleDelete = (photoId: string, storagePath: string) => {
+    deleteMutation.mutate({ photoId, storagePath });
   };
 
 
@@ -145,7 +145,7 @@ export default function PhotosAdmin() {
               />
               <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <button
-                  onClick={() => handleDelete(photo.id)}
+                  onClick={() => handleDelete(photo.id, photo.storage_path || "")}
                   disabled={deleteMutation.isPending}
                   className="p-2 rounded-full bg-destructive text-destructive-foreground hover:opacity-80 transition-opacity disabled:opacity-50"
                 >

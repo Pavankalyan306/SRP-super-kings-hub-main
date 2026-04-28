@@ -7,11 +7,12 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  loginWithPassword: (password: string) => boolean; // Legacy password auth
+  loginWithPassword: (email: string, password: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+const ADMIN_EMAIL = "ppavankalyan3306@gmail.com";
 const ADMIN_PASSWORD = "srpadmin2026";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -68,9 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Legacy password-based login
-  const loginWithPassword = (password: string) => {
-    if (password === ADMIN_PASSWORD) {
+  // Fallback admin login using local credentials
+  const loginWithPassword = (email: string, password: string) => {
+    if (email.trim().toLowerCase() === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
       setIsAdmin(true);
       sessionStorage.setItem("srp_admin", "true");
       return true;

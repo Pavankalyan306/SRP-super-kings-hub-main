@@ -10,7 +10,7 @@ export default function AdminLogin() {
   const [error, setError] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithPassword } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,6 +25,12 @@ export default function AdminLogin() {
     }
 
     try {
+      const fallbackSuccess = loginWithPassword(email, password);
+      if (fallbackSuccess) {
+        navigate("/admin");
+        return;
+      }
+
       const success = await login(email, password);
       if (success) {
         navigate("/admin");
@@ -104,6 +110,7 @@ export default function AdminLogin() {
         <div className="mt-4 p-3 bg-secondary rounded text-sm text-muted-foreground">
           <p className="font-semibold mb-1">Demo Credentials:</p>
           <p>Email: ppavankalyan3306@gmail.com</p>
+          <p>Password: srpadmin2026</p>
         </div>
       </motion.div>
     </div>
