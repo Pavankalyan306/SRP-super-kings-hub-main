@@ -106,12 +106,6 @@ export default function AdminLogin() {
             {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </form>
-
-        <div className="mt-4 p-3 bg-secondary rounded text-sm text-muted-foreground">
-          <p className="font-semibold mb-1">Demo Credentials:</p>
-          <p>Email: ppavankalyan3306@gmail.com</p>
-          <p>Password: srpadmin2026</p>
-        </div>
       </motion.div>
     </div>
   );

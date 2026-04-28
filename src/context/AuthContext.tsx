@@ -13,7 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const ADMIN_EMAIL = "ppavankalyan3306@gmail.com";
-const ADMIN_PASSWORD = "srpadmin2026";
+const ADMIN_PASSWORD = "Srp#2026!Admin$Secure9";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem("srp_admin") === "true");
