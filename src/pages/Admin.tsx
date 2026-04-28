@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useData } from "@/context/DataContext";
 import { useMatches, useCreateMatch, useUpdateMatch, useDeleteMatch } from "@/hooks/useMatches";
 import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer } from "@/hooks/usePlayers";
-import { uploadPlayerProfileImage } from "@/lib/players";
+import { uploadPlayerProfileImage, deletePlayerProfileImage } from "@/lib/players";
 import { toast } from "@/hooks/use-toast";
 import { Match, Player, NewsItem } from "@/types/cricket";
 import { motion } from "framer-motion";
@@ -239,9 +239,12 @@ function PlayersAdmin() {
     try {
       let imageUrl = form.image;
       if (imageFile) {
+        if (editing?.image) {
+          await deletePlayerProfileImage(editing.image);
+        }
         const uploadResult = await uploadPlayerProfileImage(imageFile);
         if (!uploadResult.success || !uploadResult.url) {
-          alert(uploadResult.error || "Failed to upload player image");
+          toast({ title: "Image upload failed", description: uploadResult.error || "Failed to upload player image", variant: "destructive" });
           return;
         }
         imageUrl = uploadResult.url;
@@ -267,6 +270,31 @@ function PlayersAdmin() {
 
       setImageFile(null);
       cancel();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removePlayerImage = async () => {
+    if (!editing) return;
+    setIsSaving(true);
+    try {
+      if (editing.image) {
+        const deleteResult = await deletePlayerProfileImage(editing.image);
+        if (!deleteResult.success) {
+          toast({ title: "Remove failed", description: deleteResult.error || "Could not delete image from storage", variant: "destructive" });
+          return;
+        }
+      }
+      const response = await updatePlayer({ playerId: editing.id, updates: { image: "" } });
+      if (response?.error) {
+        toast({ title: "Remove failed", description: response.error, variant: "destructive" });
+        return;
+      }
+      setForm({ ...form, image: "" });
+      setImageFile(null);
+      setEditing({ ...editing, image: "" });
+      toast({ title: "Image removed", description: "Player image removed successfully." });
     } finally {
       setIsSaving(false);
     }
@@ -320,6 +348,19 @@ function PlayersAdmin() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Player Image</label>
               <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-muted-foreground file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:font-medium file:text-xs file:cursor-pointer" />
+              {form.image && (
+                <div className="mt-2 flex items-center gap-3">
+                  <img src={form.image} alt="Player preview" className="w-12 h-12 rounded-full object-cover border border-border" />
+                  <button
+                    type="button"
+                    onClick={removePlayerImage}
+                    disabled={isSaving}
+                    className="text-xs bg-destructive/15 text-destructive px-2.5 py-1 rounded hover:bg-destructive/25 transition-colors disabled:opacity-50"
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <p className="text-xs text-muted-foreground italic">Stats (runs, wickets, matches) are calculated automatically from match data.</p>

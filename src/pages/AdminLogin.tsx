@@ -25,14 +25,16 @@ export default function AdminLogin() {
     }
 
     try {
-      const fallbackSuccess = loginWithPassword(email, password);
-      if (fallbackSuccess) {
+      // Try real Supabase auth first so admin features that require session (uploads) work.
+      const success = await login(email, password);
+      if (success) {
         navigate("/admin");
         return;
       }
 
-      const success = await login(email, password);
-      if (success) {
+      // Fallback local admin access (no Supabase session).
+      const fallbackSuccess = loginWithPassword(email, password);
+      if (fallbackSuccess) {
         navigate("/admin");
       } else {
         setError("Invalid email or password");

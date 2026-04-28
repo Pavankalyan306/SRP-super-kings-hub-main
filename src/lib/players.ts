@@ -23,6 +23,11 @@ export interface PlayerImageUploadResponse {
   error?: string;
 }
 
+export interface PlayerImageDeleteResponse {
+  success: boolean;
+  error?: string;
+}
+
 export async function uploadPlayerProfileImage(file: File): Promise<PlayerImageUploadResponse> {
   try {
     const { data: authData, error: authError } = await supabase.auth.getUser();
@@ -53,6 +58,27 @@ export async function uploadPlayerProfileImage(file: File): Promise<PlayerImageU
 
     const { data: publicUrlData } = supabase.storage.from("photos").getPublicUrl(uploadData.path);
     return { success: true, url: publicUrlData.publicUrl };
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function deletePlayerProfileImage(imageUrl: string): Promise<PlayerImageDeleteResponse> {
+  try {
+    if (!imageUrl) return { success: true };
+
+    const marker = "/storage/v1/object/public/photos/";
+    const idx = imageUrl.indexOf(marker);
+    if (idx === -1) return { success: true };
+    const storagePath = imageUrl.slice(idx + marker.length);
+    if (!storagePath) return { success: true };
+
+    const { error } = await supabase.storage.from("photos").remove([storagePath]);
+    if (error) {
+      return { success: false, error: error.message || "Failed to delete image from storage" };
+    }
+    return { success: true };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return { success: false, error: errorMessage };

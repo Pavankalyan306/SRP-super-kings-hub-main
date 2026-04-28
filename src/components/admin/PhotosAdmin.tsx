@@ -26,7 +26,23 @@ export default function PhotosAdmin() {
   };
 
   const save = async () => {
-    if (!imageFile || !user) return;
+    if (!imageFile) {
+      toast({
+        title: "Missing image",
+        description: "Please choose an image before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!user) {
+      toast({
+        title: "Login required",
+        description: "Please sign in with Supabase credentials to upload photos.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const uploadToast = toast({
       title: "Uploading photo...",

@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { DataProvider } from "@/context/DataContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -19,6 +21,20 @@ import Scorecard from "./pages/Scorecard";
 import Photos from "./pages/Photos";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import ResetPassword from "./pages/ResetPassword";
+
+function AuthHashRedirect() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const hash = window.location.hash || "";
+    if (hash.includes("type=recovery")) {
+      navigate({ pathname: "/reset-password", hash }, { replace: true });
+    }
+  }, [navigate]);
+
+  return null;
+}
 
 const queryClient = new QueryClient();
 
@@ -30,6 +46,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <AuthHashRedirect />
             <Layout>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -41,6 +58,7 @@ const App = () => (
                 <Route path="/match/:matchId" element={<Scorecard />} />
                 <Route path="/photos" element={<Photos />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route
                   path="/admin"
                   element={
