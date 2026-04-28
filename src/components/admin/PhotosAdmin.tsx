@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { usePhotos, useUploadPhoto, useDeletePhoto } from "@/hooks/usePhotos";
+import { toast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { Plus, Trash2, Image, Loader } from "lucide-react";
 
@@ -26,28 +27,75 @@ export default function PhotosAdmin() {
 
   const save = async () => {
     if (!imageFile || !user) return;
-    
-    await uploadMutation.mutateAsync({
-      file: imageFile,
-      title: title || undefined,
-      matchId: matchTag || undefined,
+
+    const uploadToast = toast({
+      title: "Uploading photo...",
+      description: "Please wait while we save your image.",
     });
 
-    setTitle("");
-    setMatchTag("");
-    setImageFile(null);
-    setPreview("");
-    setAdding(false);
+    try {
+      const response = await uploadMutation.mutateAsync({
+        file: imageFile,
+        title: title || undefined,
+        matchId: matchTag || undefined,
+      });
+
+      if (!response.success) {
+        uploadToast.update({
+          id: uploadToast.id,
+          title: "Upload failed",
+          description: response.error || response.message || "Could not upload photo",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setTitle("");
+      setMatchTag("");
+      setImageFile(null);
+      setPreview("");
+      setAdding(false);
+
+      uploadToast.update({
+        id: uploadToast.id,
+        title: "Photo uploaded",
+        description: "Photo saved successfully.",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected upload error";
+      uploadToast.update({
+        id: uploadToast.id,
+        title: "Upload failed",
+        description: message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = (photoId: string, storagePath: string) => {
-    deleteMutation.mutate({ photoId, storagePath });
+    deleteMutation.mutate(
+      { photoId, storagePath },
+      {
+        onSuccess: (response) => {
+          if (response.success) {
+            toast({ title: "Photo deleted", description: "Photo removed successfully." });
+          } else {
+            toast({
+              title: "Delete failed",
+              description: response.error || response.message || "Could not delete photo",
+              variant: "destructive",
+            });
+          }
+        },
+      }
+    );
   };
 
 
   return (
     <div>
       <button
+        type="button"
         onClick={() => setAdding(true)}
         disabled={uploadMutation.isPending}
         className="flex items-center gap-2 gradient-gold text-primary-foreground font-semibold px-4 py-2 rounded-md mb-6 hover:opacity-90 transition-opacity disabled:opacity-50"
@@ -98,6 +146,7 @@ export default function PhotosAdmin() {
           )}
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={save}
               disabled={!imageFile || uploadMutation.isPending}
               className="gradient-gold text-primary-foreground font-semibold px-6 py-2 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
@@ -111,6 +160,7 @@ export default function PhotosAdmin() {
               )}
             </button>
             <button
+              type="button"
               onClick={() => {
                 setAdding(false);
                 setPreview("");
@@ -145,6 +195,7 @@ export default function PhotosAdmin() {
               />
               <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <button
+                  type="button"
                   onClick={() => handleDelete(photo.id, photo.storage_path || "")}
                   disabled={deleteMutation.isPending}
                   className="p-2 rounded-full bg-destructive text-destructive-foreground hover:opacity-80 transition-opacity disabled:opacity-50"

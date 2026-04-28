@@ -5,6 +5,7 @@ import { useData } from "@/context/DataContext";
 import { useMatches, useCreateMatch, useUpdateMatch, useDeleteMatch } from "@/hooks/useMatches";
 import { usePlayers, useCreatePlayer, useUpdatePlayer, useDeletePlayer } from "@/hooks/usePlayers";
 import { uploadPlayerProfileImage } from "@/lib/players";
+import { toast } from "@/hooks/use-toast";
 import { Match, Player, NewsItem } from "@/types/cricket";
 import { motion } from "framer-motion";
 import { LogOut, Plus, Pencil, Trash2, Trophy, Users, Newspaper, Activity, TrendingUp, ClipboardList, UserPlus, Zap, Image, User } from "lucide-react";
@@ -122,9 +123,21 @@ function MatchesAdmin() {
   const save = () => {
     if (!form.teamA || !form.teamB || !form.date) return;
     if (editing) { 
-      updateMatch({ matchId: form.id, updates: form });
+      updateMatch(
+        { matchId: form.id, updates: form },
+        {
+          onSuccess: () => toast({ title: "Match updated", description: "Match saved successfully." }),
+          onError: () => toast({ title: "Save failed", description: "Could not update match.", variant: "destructive" }),
+        }
+      );
     } else { 
-      createMatch(form);
+      createMatch(
+        form,
+        {
+          onSuccess: () => toast({ title: "Match created", description: "Match saved successfully." }),
+          onError: () => toast({ title: "Save failed", description: "Could not create match.", variant: "destructive" }),
+        }
+      );
     }
     cancel();
   };
@@ -237,9 +250,19 @@ function PlayersAdmin() {
       const payload = { ...form, image: imageUrl };
 
       if (editing) {
-        await updatePlayer({ playerId: form.id, updates: payload });
+        const response = await updatePlayer({ playerId: form.id, updates: payload });
+        if (response?.error) {
+          toast({ title: "Save failed", description: response.error, variant: "destructive" });
+          return;
+        }
+        toast({ title: "Player updated", description: "Player saved successfully." });
       } else {
-        await createPlayer(payload);
+        const response = await createPlayer(payload);
+        if (response?.error) {
+          toast({ title: "Save failed", description: response.error, variant: "destructive" });
+          return;
+        }
+        toast({ title: "Player created", description: "Player saved successfully." });
       }
 
       setImageFile(null);
@@ -360,8 +383,14 @@ function NewsAdmin() {
 
   const save = () => {
     if (!form.title) return;
-    if (editing) { updateNews({ ...form }); }
-    else { addNews(form); }
+    if (editing) {
+      updateNews({ ...form });
+      toast({ title: "News updated", description: "News saved successfully." });
+    }
+    else {
+      addNews(form);
+      toast({ title: "News created", description: "News saved successfully." });
+    }
     cancel();
   };
 
