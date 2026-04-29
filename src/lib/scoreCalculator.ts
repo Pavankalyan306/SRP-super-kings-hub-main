@@ -86,6 +86,8 @@ export interface BatterStats {
   strikeRate: number;
   isOut: boolean;
   dismissal: string;
+  dismissalType?: string;
+  fielderId?: string;
 }
 
 export interface BowlerStats {
@@ -132,7 +134,12 @@ export function calculateBattingStats(balls: BallData[], innings: "A" | "B"): Ba
 
     if ((b.wicket || r === "W") && (b.dismissedPlayer || b.batter) === b.batter) {
       s.isOut = true;
-      s.dismissal = b.dismissalType === "run_out" ? "run out" : "out";
+      s.dismissalType = b.dismissalType || "out";
+      s.fielderId = b.fielderId;
+      if (b.dismissalType === "caught") s.dismissal = "caught";
+      else if (b.dismissalType === "run_out") s.dismissal = "run out";
+      else if (b.dismissalType === "bowled") s.dismissal = "bowled";
+      else s.dismissal = "out";
     }
   });
 
@@ -143,11 +150,13 @@ export function calculateBattingStats(balls: BallData[], innings: "A" | "B"): Ba
       statsMap[dismissed] = {
         playerId: dismissed,
         runs: 0, balls: 0, fours: 0, sixes: 0,
-        strikeRate: 0, isOut: true, dismissal: "run out",
+        strikeRate: 0, isOut: true, dismissal: "run out", dismissalType: "run_out", fielderId: b.fielderId,
       };
     } else {
       statsMap[dismissed].isOut = true;
       statsMap[dismissed].dismissal = "run out";
+      statsMap[dismissed].dismissalType = b.dismissalType || "run_out";
+      statsMap[dismissed].fielderId = b.fielderId;
     }
   });
 

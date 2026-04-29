@@ -37,7 +37,13 @@ interface LiveBallRow {
   wicket?: boolean | null;
   dismissal_type?: string | null;
   dismissal_player?: string | null;
+  notes?: string | null;
 }
+
+const parseFielderId = (notes?: string | null) => {
+  if (!notes?.startsWith('fielder:')) return undefined;
+  return notes.replace('fielder:', '') || undefined;
+};
 
 const mapLiveBallRow = (row: LiveBallRow): UiBallData => ({
   id: row.id,
@@ -51,6 +57,7 @@ const mapLiveBallRow = (row: LiveBallRow): UiBallData => ({
   wicket: Boolean(row.wicket),
   dismissalType: row.dismissal_type || undefined,
   dismissedPlayer: row.dismissal_player || undefined,
+  fielderId: parseFielderId(row.notes),
 });
 
 export async function fetchLiveBallsByMatch(matchId: string): Promise<{ data: UiBallData[]; error: string | null }> {
@@ -88,6 +95,7 @@ export async function addLiveBall(ball: Omit<UiBallData, 'id'>): Promise<{ data:
       wicket: Boolean(ball.wicket || ball.result === 'W'),
       dismissal_type: ball.dismissalType || (ball.result === 'W' ? 'out' : null),
       dismissal_player: ball.dismissedPlayer || (ball.result === 'W' ? ball.batter : null),
+      notes: ball.fielderId ? `fielder:${ball.fielderId}` : null,
       recorded_at: new Date().toISOString(),
     }])
     .select()

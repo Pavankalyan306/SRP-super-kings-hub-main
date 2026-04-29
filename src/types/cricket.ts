@@ -63,6 +63,7 @@ export interface BallData {
   wicket?: boolean;
   dismissalType?: string;
   dismissedPlayer?: string;
+  fielderId?: string;
 }
 
 export interface Player {

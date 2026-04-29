@@ -46,6 +46,7 @@ const ILLEGAL_DELIVERIES = ["WD", "NB"];
 interface WicketInfo {
   dismissalType: string;
   dismissedPlayer: string;
+  fielderId?: string;
 }
 
 export default function LiveScoringAdmin() {
@@ -55,8 +56,12 @@ export default function LiveScoringAdmin() {
   const [pendingNonStriker, setPendingNonStriker] = useState("");
   const [pendingBowler, setPendingBowler] = useState("");
   const [showRunOutPanel, setShowRunOutPanel] = useState(false);
+  const [showWicketPanel, setShowWicketPanel] = useState(false);
   const [runOutRuns, setRunOutRuns] = useState("0");
   const [runOutPlayer, setRunOutPlayer] = useState<"striker" | "nonStriker">("striker");
+  const [runOutFielder, setRunOutFielder] = useState("");
+  const [wicketType, setWicketType] = useState("bowled");
+  const [wicketFielder, setWicketFielder] = useState("");
   const { data: matches = [] } = useMatches();
   const { data: players = [] } = usePlayers();
   const { data: balls = [] } = useLiveBallsByMatch(selectedMatchId);
@@ -234,6 +239,12 @@ export default function LiveScoringAdmin() {
     if (!match || !match.currentInnings || !match.striker || !match.currentBowler) return;
     if (result === "RO") {
       setShowRunOutPanel(true);
+      setShowWicketPanel(false);
+      return;
+    }
+    if (result === "W" && !wicketInfo) {
+      setShowWicketPanel(true);
+      setShowRunOutPanel(false);
       return;
     }
     // Block if overs exhausted
@@ -259,6 +270,7 @@ export default function LiveScoringAdmin() {
       wicket: Boolean(wicketInfo || result === "W"),
       dismissalType: wicketInfo?.dismissalType || (result === "W" ? "out" : undefined),
       dismissedPlayer: wicketInfo?.dismissedPlayer || (result === "W" ? match.striker : undefined),
+      fielderId: wicketInfo?.fielderId,
     });
 
     // Post-ball logic (deferred to allow state to update)
@@ -268,10 +280,23 @@ export default function LiveScoringAdmin() {
   const recordRunOut = () => {
     if (!match?.striker || !match.nonStriker) return;
     const dismissedPlayer = runOutPlayer === "striker" ? match.striker : match.nonStriker;
-    addQuickBall(runOutRuns, { dismissalType: "run_out", dismissedPlayer });
+    addQuickBall(runOutRuns, { dismissalType: "run_out", dismissedPlayer, fielderId: runOutFielder || undefined });
     setShowRunOutPanel(false);
     setRunOutRuns("0");
     setRunOutPlayer("striker");
+    setRunOutFielder("");
+  };
+
+  const recordWicket = () => {
+    if (!match?.striker) return;
+    addQuickBall("W", {
+      dismissalType: wicketType,
+      dismissedPlayer: match.striker,
+      fielderId: wicketType === "caught" || wicketType === "run_out" || wicketType === "stumped" ? wicketFielder || undefined : undefined,
+    });
+    setShowWicketPanel(false);
+    setWicketType("bowled");
+    setWicketFielder("");
   };
 
   // Auto-end match checks (called after state settles)
@@ -448,6 +473,16 @@ export default function LiveScoringAdmin() {
   const toggleLiveScoring = () => {
     if (!match) return;
     updateMatch({ ...match, liveScoring: !match.liveScoring });
+  };
+
+  const formatDismissal = (b: { dismissal: string; dismissalType?: string; fielderId?: string }) => {
+    if (b.dismissalType === "caught") return `c ${b.fielderId ? getPlayerName(b.fielderId) : ""}`.trim();
+    if (b.dismissalType === "run_out") return `run out ${b.fielderId ? getPlayerName(b.fielderId) : ""}`.trim();
+    if (b.dismissalType === "stumped") return `st ${b.fielderId ? getPlayerName(b.fielderId) : ""}`.trim();
+    if (b.dismissalType === "bowled") return "b bowler";
+    if (b.dismissalType === "lbw") return "lbw";
+    if (b.dismissalType === "hit_wicket") return "hit wicket";
+    return b.dismissal || "out";
   };
 
   const endMatch = (result: string) => {
@@ -806,6 +841,16 @@ export default function LiveScoringAdmin() {
                         <option value="nonStriker">Non-striker - {match.nonStriker ? getPlayerName(match.nonStriker) : ""}</option>
                       </select>
                     </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs text-muted-foreground">Fielder</label>
+                      <select value={runOutFielder} onChange={(e) => setRunOutFielder(e.target.value)}
+                        className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm">
+                        <option value="">-- Select fielder --</option>
+                        {bowlingSquad.map((mp) => (
+                          <option key={mp.playerId} value={mp.playerId}>{getPlayerName(mp.playerId)}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="mt-3 flex gap-2">
                     <button onClick={recordRunOut} disabled={!match.nonStriker}
@@ -813,6 +858,56 @@ export default function LiveScoringAdmin() {
                       Record Run Out
                     </button>
                     <button onClick={() => setShowRunOutPanel(false)}
+                      className="rounded-md bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition-opacity hover:opacity-80">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showWicketPanel && (
+                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                  <h4 className="mb-3 text-sm font-bold text-destructive">Wicket details</h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Dismissal</label>
+                      <select value={wicketType} onChange={(e) => setWicketType(e.target.value)}
+                        className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm">
+                        <option value="bowled">Bowled</option>
+                        <option value="caught">Caught</option>
+                        <option value="run_out">Run out</option>
+                        <option value="stumped">Stumped</option>
+                        <option value="lbw">LBW</option>
+                        <option value="hit_wicket">Hit wicket</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Batter out</label>
+                      <input value={match.striker ? getPlayerName(match.striker) : ""} readOnly
+                        className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm" />
+                    </div>
+                    {(wicketType === "caught" || wicketType === "run_out" || wicketType === "stumped") && (
+                      <div className="sm:col-span-2">
+                        <label className="mb-1 block text-xs text-muted-foreground">
+                          {wicketType === "caught" ? "Caught by" : wicketType === "stumped" ? "Keeper/Fielder" : "Fielder"}
+                        </label>
+                        <select value={wicketFielder} onChange={(e) => setWicketFielder(e.target.value)}
+                          className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm">
+                          <option value="">-- Select player --</option>
+                          {bowlingSquad.map((mp) => (
+                            <option key={mp.playerId} value={mp.playerId}>{getPlayerName(mp.playerId)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={recordWicket}
+                      disabled={(wicketType === "caught" || wicketType === "run_out" || wicketType === "stumped") && !wicketFielder}
+                      className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50">
+                      Record Wicket
+                    </button>
+                    <button onClick={() => setShowWicketPanel(false)}
                       className="rounded-md bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition-opacity hover:opacity-80">
                       Cancel
                     </button>
@@ -931,7 +1026,7 @@ export default function LiveScoringAdmin() {
                         <td className="px-4 py-2.5 font-semibold text-foreground">
                           {getPlayerName(b.playerId)}
                           {b.playerId === match.striker && <span className="text-primary ml-1">*</span>}
-                          {b.isOut && <span className="text-destructive ml-1 text-xs">(out)</span>}
+                          {b.isOut && <span className="text-destructive ml-1 text-xs">({formatDismissal(b)})</span>}
                         </td>
                         <td className="text-center px-2 py-2.5 font-bold text-foreground">{b.runs}</td>
                         <td className="text-center px-2 py-2.5 text-muted-foreground">{b.balls}</td>
