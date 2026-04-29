@@ -183,9 +183,16 @@ export async function updateMatch(matchId: string, updates: Partial<Match>): Pro
     if (updates.inningsATeam !== undefined) dbUpdates.innings_a_team = updates.inningsATeam;
     if (updates.inningsBTeam !== undefined) dbUpdates.innings_b_team = updates.inningsBTeam;
 
-    const { error } = await supabase.from("matches").update(dbUpdates).eq("id", matchId);
+    const { data: updatedRows, error } = await supabase
+      .from("matches")
+      .update(dbUpdates)
+      .eq("id", matchId)
+      .select("id");
     if (error) {
       return { data: null, error: error.message || `Failed to update match ${matchId}`, isLoading: false };
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      return { data: null, error: "Match update was blocked by database permissions or the match no longer exists.", isLoading: false };
     }
     return fetchMatchById(matchId);
   } catch (err) {
@@ -205,7 +212,10 @@ export async function deleteMatch(matchId: string): Promise<{ error: string | nu
       }
     }
 
-    const { error } = await supabase.from("matches").delete().eq("id", matchId);
+    const { data: deletedRows, error } = await supabase.from("matches").delete().eq("id", matchId).select("id");
+    if (!error && (!deletedRows || deletedRows.length === 0)) {
+      return { error: "Match delete was blocked by database permissions or the match no longer exists." };
+    }
     return { error: error ? error.message || `Failed to delete match ${matchId}` : null };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";

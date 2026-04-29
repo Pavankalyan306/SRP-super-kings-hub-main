@@ -4,6 +4,7 @@ import { usePlayers } from "@/hooks/usePlayers";
 import { useMatchPlayers } from "@/hooks/useMatchPlayers";
 import { useAddLiveBall, useDeleteLiveBall, useLiveBallsByMatch } from "@/hooks/useBalls";
 import { BallData } from "@/types/cricket";
+import { toast } from "@/hooks/use-toast";
 import {
   calculateInningsScore,
   getNextBallInfo,
@@ -487,20 +488,36 @@ export default function LiveScoringAdmin() {
 
   const endMatch = (result: string) => {
     if (!match) return;
-    updateMatch({
-      ...match,
-      status: "completed",
-      liveScoring: false,
-      scoreA: scoreA.score,
-      scoreB: scoreB.score,
-      oversA: scoreA.overs,
-      oversB: scoreB.overs,
-      result,
-      striker: undefined,
-      nonStriker: undefined,
-      currentBowler: undefined,
-    });
-    setPhase("select-match");
+    updateMatchMutation(
+      {
+        matchId: match.id,
+        updates: {
+          status: "completed",
+          liveScoring: false,
+          scoreA: scoreA.score,
+          scoreB: scoreB.score,
+          oversA: scoreA.overs,
+          oversB: scoreB.overs,
+          result,
+          striker: undefined,
+          nonStriker: undefined,
+          currentBowler: undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Match ended", description: result });
+          setPhase("select-match");
+        },
+        onError: (error) => {
+          toast({
+            title: "End match failed",
+            description: error instanceof Error ? error.message : "Could not end match.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
   };
 
   const undoLastBall = () => {

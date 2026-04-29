@@ -294,17 +294,17 @@ DROP POLICY IF EXISTS "Enable insert for authenticated users" ON balls;
 DROP POLICY IF EXISTS "Enable insert for authenticated users" ON match_players;
 
 CREATE POLICY "Enable insert for authenticated users" ON photos
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable insert for authenticated users" ON players
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable insert for authenticated users" ON teams
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable insert for authenticated users" ON matches
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable insert for authenticated users" ON balls
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable insert for authenticated users" ON match_players
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+  FOR INSERT WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON photos;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON players;
@@ -314,17 +314,17 @@ DROP POLICY IF EXISTS "Enable update for authenticated users" ON balls;
 DROP POLICY IF EXISTS "Enable update for authenticated users" ON match_players;
 
 CREATE POLICY "Enable update for authenticated users" ON photos
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON players
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON teams
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON matches
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON balls
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Enable update for authenticated users" ON match_players
-  FOR UPDATE USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+  FOR UPDATE USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable delete for authenticated users" ON photos;
 DROP POLICY IF EXISTS "Enable delete for authenticated users" ON players;
@@ -337,23 +337,23 @@ DROP POLICY IF EXISTS "Enable delete for authenticated users" ON team_players;
 DROP POLICY IF EXISTS "Enable delete for authenticated users" ON match_players;
 
 CREATE POLICY "Enable delete for authenticated users" ON photos
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON players
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON teams
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON matches
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON balls
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON batting_entries
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON bowling_entries
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON team_players
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 CREATE POLICY "Enable delete for authenticated users" ON match_players
-  FOR DELETE USING (auth.role() = 'authenticated');
+  FOR DELETE USING (true);
 
 -- ============================================
 -- Setup complete

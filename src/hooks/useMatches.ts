@@ -162,6 +162,9 @@ export function useDeleteMatch() {
     },
     onSuccess: (deletedMatchId) => {
       // Remove from cache
+      queryClient.setQueryData<Match[]>(['matches'], (old = []) =>
+        old.filter((match) => match.id !== deletedMatchId)
+      );
       queryClient.setQueryData(
         ['matches', deletedMatchId],
         null
