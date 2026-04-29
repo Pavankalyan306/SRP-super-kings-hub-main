@@ -9,18 +9,18 @@ export function calculateInningsScore(balls: BallData[], innings: "A" | "B") {
 
   inningsBalls.forEach((b) => {
     const r = b.result;
-    if (["0", "1", "2", "3", "4", "6"].includes(r)) {
+    if (["0", "1", "2", "3", "4", "5", "6"].includes(r)) {
       totalRuns += parseInt(r);
-      legalBalls++;
-    } else if (r === "W") {
-      wickets++;
       legalBalls++;
     } else if (r === "WD" || r === "NB") {
       totalRuns += 1;
     } else if (r === "LB" || r === "B") {
       legalBalls++;
       totalRuns += 1;
+    } else if (r === "W") {
+      legalBalls++;
     }
+    if (b.wicket || r === "W") wickets++;
   });
 
   const completedOvers = Math.floor(legalBalls / 6);
@@ -115,21 +115,39 @@ export function calculateBattingStats(balls: BallData[], innings: "A" | "B"): Ba
     const s = statsMap[b.batter];
     const r = b.result;
 
-    if (["0", "1", "2", "3", "4", "6"].includes(r)) {
+    if (["0", "1", "2", "3", "4", "5", "6"].includes(r)) {
       const val = parseInt(r);
       s.runs += val;
       s.balls++;
       if (val === 4) s.fours++;
       if (val === 6) s.sixes++;
     } else if (r === "W") {
-      s.isOut = true;
-      s.dismissal = "out";
       s.balls++;
     } else if (r === "WD" || r === "NB") {
       // extras don't count as batter's ball
     } else if (r === "LB" || r === "B") {
       s.balls++;
       // runs go to team extras, not batter
+    }
+
+    if ((b.wicket || r === "W") && (b.dismissedPlayer || b.batter) === b.batter) {
+      s.isOut = true;
+      s.dismissal = b.dismissalType === "run_out" ? "run out" : "out";
+    }
+  });
+
+  inningsBalls.forEach((b) => {
+    const dismissed = b.dismissedPlayer;
+    if (!dismissed || dismissed === b.batter || !b.wicket) return;
+    if (!statsMap[dismissed]) {
+      statsMap[dismissed] = {
+        playerId: dismissed,
+        runs: 0, balls: 0, fours: 0, sixes: 0,
+        strikeRate: 0, isOut: true, dismissal: "run out",
+      };
+    } else {
+      statsMap[dismissed].isOut = true;
+      statsMap[dismissed].dismissal = "run out";
     }
   });
 
@@ -157,13 +175,12 @@ export function calculateBowlingStats(balls: BallData[], innings: "A" | "B"): Bo
     const s = statsMap[b.bowler];
     const r = b.result;
 
-    if (["0", "1", "2", "3", "4", "6"].includes(r)) {
+    if (["0", "1", "2", "3", "4", "5", "6"].includes(r)) {
       const val = parseInt(r);
       s.runs += val;
       s.legalBalls++;
       if (val === 0) s.dots++;
     } else if (r === "W") {
-      s.wickets++;
       s.legalBalls++;
       s.dots++;
     } else if (r === "WD" || r === "NB") {
@@ -171,6 +188,10 @@ export function calculateBowlingStats(balls: BallData[], innings: "A" | "B"): Bo
     } else if (r === "LB" || r === "B") {
       s.legalBalls++;
       s.runs += 1;
+    }
+
+    if ((b.wicket || r === "W") && b.dismissalType !== "run_out") {
+      s.wickets++;
     }
   });
 

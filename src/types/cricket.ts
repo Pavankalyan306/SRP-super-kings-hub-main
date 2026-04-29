@@ -60,6 +60,9 @@ export interface BallData {
   result: string;
   batter?: string;
   bowler?: string;
+  wicket?: boolean;
+  dismissalType?: string;
+  dismissedPlayer?: string;
 }
 
 export interface Player {

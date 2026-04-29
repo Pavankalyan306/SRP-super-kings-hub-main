@@ -34,6 +34,9 @@ interface LiveBallRow {
   batsman_id?: string | null;
   bowler_player_id?: string | null;
   bowler_id?: string | null;
+  wicket?: boolean | null;
+  dismissal_type?: string | null;
+  dismissal_player?: string | null;
 }
 
 const mapLiveBallRow = (row: LiveBallRow): UiBallData => ({
@@ -45,6 +48,9 @@ const mapLiveBallRow = (row: LiveBallRow): UiBallData => ({
   result: row.result || String(row.runs ?? 0),
   batter: row.batter_id || row.batsman_id || undefined,
   bowler: row.bowler_player_id || row.bowler_id || undefined,
+  wicket: Boolean(row.wicket),
+  dismissalType: row.dismissal_type || undefined,
+  dismissedPlayer: row.dismissal_player || undefined,
 });
 
 export async function fetchLiveBallsByMatch(matchId: string): Promise<{ data: UiBallData[]; error: string | null }> {
@@ -79,7 +85,9 @@ export async function addLiveBall(ball: Omit<UiBallData, 'id'>): Promise<{ data:
       batsman_id: ball.batter || null,
       bowler_player_id: ball.bowler || null,
       bowler_id: ball.bowler || null,
-      wicket: ball.result === 'W',
+      wicket: Boolean(ball.wicket || ball.result === 'W'),
+      dismissal_type: ball.dismissalType || (ball.result === 'W' ? 'out' : null),
+      dismissal_player: ball.dismissedPlayer || (ball.result === 'W' ? ball.batter : null),
       recorded_at: new Date().toISOString(),
     }])
     .select()

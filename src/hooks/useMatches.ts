@@ -109,6 +109,22 @@ export function useUpdateMatch() {
       }
       return response.data?.[0];
     },
+    onMutate: async ({ matchId, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['matches'] });
+      await queryClient.cancelQueries({ queryKey: ['matches', matchId] });
+
+      const previousMatches = queryClient.getQueryData<Match[]>(['matches']);
+      const previousMatch = queryClient.getQueryData<Match>(['matches', matchId]);
+
+      queryClient.setQueryData<Match[]>(['matches'], (old = []) =>
+        old.map((match) => (match.id === matchId ? { ...match, ...updates } : match))
+      );
+      queryClient.setQueryData<Match | null>(['matches', matchId], (old) =>
+        old ? { ...old, ...updates } : old
+      );
+
+      return { previousMatches, previousMatch, matchId };
+    },
     onSuccess: (data) => {
       if (data) {
         // Update the specific match in cache
@@ -117,7 +133,13 @@ export function useUpdateMatch() {
       // Invalidate matches list
       queryClient.invalidateQueries({ queryKey: ['matches'] });
     },
-    onError: (error) => {
+    onError: (error, _variables, context) => {
+      if (context?.previousMatches) {
+        queryClient.setQueryData(['matches'], context.previousMatches);
+      }
+      if (context?.previousMatch && context.matchId) {
+        queryClient.setQueryData(['matches', context.matchId], context.previousMatch);
+      }
       console.error('Failed to update match:', error);
     },
   });

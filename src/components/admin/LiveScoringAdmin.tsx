@@ -21,6 +21,7 @@ const BALL_COLORS: Record<string, string> = {
   "4": "bg-primary/20 text-primary border border-primary/40",
   "6": "bg-accent/20 text-accent border border-accent/40",
   "W": "bg-destructive/20 text-destructive border border-destructive/40",
+  "RO": "bg-destructive/20 text-destructive border border-destructive/40",
   "WD": "bg-muted text-muted-foreground border border-border",
   "NB": "bg-muted text-muted-foreground border border-border",
   "LB": "bg-muted text-muted-foreground border border-border",
@@ -35,12 +36,17 @@ const QUICK_BUTTONS = [
   { label: "4", value: "4", color: "bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40" },
   { label: "6", value: "6", color: "bg-accent/20 hover:bg-accent/30 text-accent border border-accent/40" },
   { label: "W", value: "W", color: "bg-destructive/20 hover:bg-destructive/30 text-destructive border border-destructive/40" },
+  { label: "RO", value: "RO", color: "bg-destructive/20 hover:bg-destructive/30 text-destructive border border-destructive/40" },
   { label: "WD", value: "WD", color: "bg-muted hover:bg-muted/80 text-muted-foreground border border-border" },
   { label: "NB", value: "NB", color: "bg-muted hover:bg-muted/80 text-muted-foreground border border-border" },
 ];
 
 type Phase = "select-match" | "select-openers" | "select-bowler" | "scoring" | "select-new-batsman" | "select-new-bowler";
 const ILLEGAL_DELIVERIES = ["WD", "NB"];
+interface WicketInfo {
+  dismissalType: string;
+  dismissedPlayer: string;
+}
 
 export default function LiveScoringAdmin() {
   const [selectedMatchId, setSelectedMatchId] = useState("");
@@ -48,6 +54,9 @@ export default function LiveScoringAdmin() {
   const [pendingStriker, setPendingStriker] = useState("");
   const [pendingNonStriker, setPendingNonStriker] = useState("");
   const [pendingBowler, setPendingBowler] = useState("");
+  const [showRunOutPanel, setShowRunOutPanel] = useState(false);
+  const [runOutRuns, setRunOutRuns] = useState("0");
+  const [runOutPlayer, setRunOutPlayer] = useState<"striker" | "nonStriker">("striker");
   const { data: matches = [] } = useMatches();
   const { data: players = [] } = usePlayers();
   const { data: balls = [] } = useLiveBallsByMatch(selectedMatchId);
@@ -221,8 +230,12 @@ export default function LiveScoringAdmin() {
   const inningsBComplete = inningsBLegal >= totalBallsInInnings;
   const currentInningsComplete = currentInnings === "A" ? inningsAComplete : inningsBComplete;
 
-  const addQuickBall = (result: string) => {
+  const addQuickBall = (result: string, wicketInfo?: WicketInfo) => {
     if (!match || !match.currentInnings || !match.striker || !match.currentBowler) return;
+    if (result === "RO") {
+      setShowRunOutPanel(true);
+      return;
+    }
     // Block if overs exhausted
     if (currentInningsComplete) return;
     const next = getNextBallInfo(matchBalls, match.currentInnings);
@@ -243,10 +256,22 @@ export default function LiveScoringAdmin() {
       result,
       batter: match.striker,
       bowler: match.currentBowler,
+      wicket: Boolean(wicketInfo || result === "W"),
+      dismissalType: wicketInfo?.dismissalType || (result === "W" ? "out" : undefined),
+      dismissedPlayer: wicketInfo?.dismissedPlayer || (result === "W" ? match.striker : undefined),
     });
 
     // Post-ball logic (deferred to allow state to update)
-    setTimeout(() => handlePostBall(result, next.over, next.ball), 50);
+    setTimeout(() => handlePostBall(result, next.over, next.ball, wicketInfo), 50);
+  };
+
+  const recordRunOut = () => {
+    if (!match?.striker || !match.nonStriker) return;
+    const dismissedPlayer = runOutPlayer === "striker" ? match.striker : match.nonStriker;
+    addQuickBall(runOutRuns, { dismissalType: "run_out", dismissedPlayer });
+    setShowRunOutPanel(false);
+    setRunOutRuns("0");
+    setRunOutPlayer("striker");
   };
 
   // Auto-end match checks (called after state settles)
@@ -302,30 +327,40 @@ export default function LiveScoringAdmin() {
     }
   };
 
-  const handlePostBall = (result: string, overNum: number, ballNum: number) => {
+  const handlePostBall = (result: string, overNum: number, ballNum: number, wicketInfo?: WicketInfo) => {
     if (!match) return;
     const isLegal = !ILLEGAL_DELIVERIES.includes(result);
-    const isWicket = result === "W";
+    const isWicket = result === "W" || Boolean(wicketInfo);
     const runsScored = ["1", "2", "3", "4", "5", "6"].includes(result) ? parseInt(result) : 0;
     const isOddRuns = runsScored % 2 === 1;
     const isEndOfOver = isLegal && ballNum >= 6;
 
     if (isWicket) {
-      const newOut = [...(match.outBatsmen || []), match.striker!];
-      if (isEndOfOver) {
-        // Wicket on last ball of over: need new batsman AND new bowler
-        // Swap strike at end of over (non-striker faces next over)
-        updateMatch({
-          ...match,
-          outBatsmen: newOut,
-          striker: undefined,
-          nonStriker: match.nonStriker,
-          lastBowler: match.currentBowler,
-          currentBowler: undefined,
-        });
-      } else {
-        updateMatch({ ...match, outBatsmen: newOut, striker: undefined });
+      const dismissedPlayer = wicketInfo?.dismissedPlayer || match.striker!;
+      const newOut = [...(match.outBatsmen || []), dismissedPlayer];
+      let newStriker = match.striker;
+      let newNonStriker = match.nonStriker;
+
+      if (isOddRuns) {
+        newStriker = match.nonStriker;
+        newNonStriker = match.striker;
       }
+
+      if (isEndOfOver) {
+        const temp = newStriker;
+        newStriker = newNonStriker;
+        newNonStriker = temp;
+      }
+
+      if (newStriker === dismissedPlayer) newStriker = undefined;
+      if (newNonStriker === dismissedPlayer) newNonStriker = undefined;
+
+      updateSelectedMatch({
+        outBatsmen: newOut,
+        striker: newStriker,
+        nonStriker: newNonStriker,
+        ...(isEndOfOver ? { lastBowler: match.currentBowler, currentBowler: undefined } : {}),
+      });
       // Check all-out or auto result after wicket
       setTimeout(() => checkAutoResult(), 100);
       setPhase("select-new-batsman");
@@ -345,13 +380,13 @@ export default function LiveScoringAdmin() {
     }
 
     if (isEndOfOver) {
-      // Swap again at end of over (net effect: if odd runs + end of over, they cancel)
+      // End-over swap. Net effect:
+      // - single/three/five on last ball: striker stays on strike next over
+      // - zero/two/four/six on last ball: non-striker faces next over
       const temp = newStriker;
       newStriker = newNonStriker;
       newNonStriker = temp;
-      // Need new bowler
-      updateMatch({
-        ...match,
+      updateSelectedMatch({
         striker: newStriker,
         nonStriker: newNonStriker,
         lastBowler: match.currentBowler,
@@ -363,13 +398,17 @@ export default function LiveScoringAdmin() {
     }
 
     if (newStriker !== match.striker || newNonStriker !== match.nonStriker) {
-      updateMatch({ ...match, striker: newStriker, nonStriker: newNonStriker });
+      updateSelectedMatch({ striker: newStriker, nonStriker: newNonStriker });
     }
   };
 
   const confirmNewBatsman = () => {
     if (!match || !pendingStriker) return;
-    updateMatch({ ...match, striker: pendingStriker });
+    if (match.striker) {
+      updateSelectedMatch({ nonStriker: pendingStriker });
+    } else {
+      updateSelectedMatch({ striker: pendingStriker });
+    }
     setPendingStriker("");
     // If bowler was cleared (wicket on last ball of over), need new bowler too
     if (!match.currentBowler) {
@@ -746,6 +785,41 @@ export default function LiveScoringAdmin() {
                 </div>
               )}
 
+              {showRunOutPanel && (
+                <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-4">
+                  <h4 className="mb-3 text-sm font-bold text-destructive">Run out</h4>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Runs completed</label>
+                      <select value={runOutRuns} onChange={(e) => setRunOutRuns(e.target.value)}
+                        className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm">
+                        {["0", "1", "2", "3"].map((runs) => (
+                          <option key={runs} value={runs}>{runs}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Who is out?</label>
+                      <select value={runOutPlayer} onChange={(e) => setRunOutPlayer(e.target.value as "striker" | "nonStriker")}
+                        className="w-full bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm">
+                        <option value="striker">Striker - {match.striker ? getPlayerName(match.striker) : ""}</option>
+                        <option value="nonStriker">Non-striker - {match.nonStriker ? getPlayerName(match.nonStriker) : ""}</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={recordRunOut} disabled={!match.nonStriker}
+                      className="rounded-md bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-opacity hover:opacity-90 disabled:opacity-50">
+                      Record Run Out
+                    </button>
+                    <button onClick={() => setShowRunOutPanel(false)}
+                      className="rounded-md bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground transition-opacity hover:opacity-80">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-5 sm:grid-cols-9 gap-2">
                 {QUICK_BUTTONS.map((btn) => (
                   <button
@@ -779,7 +853,7 @@ export default function LiveScoringAdmin() {
                       if ([...ILLEGAL_DELIVERIES, "LB","B"].includes(r)) return s + 1;
                       return s;
                     }, 0);
-                    const overWickets = overBalls.filter((b) => b.result === "W").length;
+                    const overWickets = overBalls.filter((b) => b.wicket || b.result === "W").length;
                     const isLegalComplete = overBalls.filter((b) => !ILLEGAL_DELIVERIES.includes(b.result)).length >= 6;
                     const isCurrentOver = !isLegalComplete && Object.keys(overs).indexOf(overNum) === Object.keys(overs).length - 1;
 
