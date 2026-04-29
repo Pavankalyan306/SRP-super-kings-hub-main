@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from "react";
-import { useData } from "@/context/DataContext";
-import { Match } from "@/types/cricket";
+import { useMatches, useUpdateMatch } from "@/hooks/useMatches";
+import { usePlayers } from "@/hooks/usePlayers";
+import { useMatchPlayers } from "@/hooks/useMatchPlayers";
+import { useAddLiveBall, useDeleteLiveBall, useLiveBallsByMatch } from "@/hooks/useBalls";
+import { BallData } from "@/types/cricket";
 import {
   calculateInningsScore,
   getNextBallInfo,
-  isOverComplete,
   calculateBattingStats,
   calculateBowlingStats,
 } from "@/lib/scoreCalculator";
@@ -38,18 +40,34 @@ const QUICK_BUTTONS = [
 ];
 
 type Phase = "select-match" | "select-openers" | "select-bowler" | "scoring" | "select-new-batsman" | "select-new-bowler";
+const ILLEGAL_DELIVERIES = ["WD", "NB"];
 
 export default function LiveScoringAdmin() {
-  const { matches, balls, players, matchPlayers, updateMatch, addBall, deleteBall } = useData();
   const [selectedMatchId, setSelectedMatchId] = useState("");
   const [phase, setPhase] = useState<Phase>("select-match");
   const [pendingStriker, setPendingStriker] = useState("");
   const [pendingNonStriker, setPendingNonStriker] = useState("");
   const [pendingBowler, setPendingBowler] = useState("");
+  const { data: matches = [] } = useMatches();
+  const { data: players = [] } = usePlayers();
+  const { data: balls = [] } = useLiveBallsByMatch(selectedMatchId);
+  const { mutate: updateMatchMutation } = useUpdateMatch();
+  const { mutate: addBallMutation } = useAddLiveBall();
+  const { mutate: deleteBallMutation } = useDeleteLiveBall();
 
   const match = matches.find((m) => m.id === selectedMatchId);
   const matchBalls = useMemo(() => balls.filter((b) => b.matchId === selectedMatchId), [balls, selectedMatchId]);
   const currentInnings = match?.currentInnings || "A";
+  const { data: matchPlayers = [] } = useMatchPlayers(selectedMatchId, match?.teamAId, match?.teamBId);
+  const updateMatch = useCallback((nextMatch: typeof match) => {
+    if (!nextMatch) return;
+    updateMatchMutation({ matchId: nextMatch.id, updates: nextMatch });
+  }, [updateMatchMutation]);
+
+  const updateSelectedMatch = useCallback((updates: Partial<NonNullable<typeof match>>) => {
+    if (!match) return;
+    updateMatchMutation({ matchId: match.id, updates });
+  }, [match, updateMatchMutation]);
 
   // Get team players for current innings
   const assigned = useMemo(() => matchPlayers.filter((mp) => mp.matchId === selectedMatchId), [matchPlayers, selectedMatchId]);
@@ -85,8 +103,18 @@ export default function LiveScoringAdmin() {
       mp.playerId !== match?.nonStriker
   );
 
+  const lastCompletedOverBowler = useMemo(() => {
+    const inningsBalls = matchBalls.filter((b) => b.innings === currentInnings);
+    const completedOvers = Array.from(new Set(inningsBalls.map((b) => b.over)))
+      .sort((a, b) => b - a)
+      .filter((over) => inningsBalls.filter((b) => b.over === over && !ILLEGAL_DELIVERIES.includes(b.result)).length >= 6);
+    const lastCompletedOver = completedOvers[0];
+    if (!lastCompletedOver) return undefined;
+    return inningsBalls.find((b) => b.over === lastCompletedOver && b.bowler)?.bowler;
+  }, [currentInnings, matchBalls]);
+
   // Bowlers - prevent consecutive overs by same bowler (applies after first over)
-  const lastOverBowler = match?.lastBowler;
+  const lastOverBowler = lastCompletedOverBowler || match?.lastBowler;
   const availableBowlers = bowlingSquad.filter((mp) => mp.playerId !== lastOverBowler);
 
   // Scores
@@ -98,7 +126,7 @@ export default function LiveScoringAdmin() {
   const totalOvers = match?.totalOvers || 20;
   const totalBallsInInnings = totalOvers * 6;
   const target = scoreA.totalRuns + 1;
-  const inningsBBalls = matchBalls.filter((b) => b.innings === "B" && !["WD", "NB"].includes(b.result)).length;
+  const inningsBBalls = matchBalls.filter((b) => b.innings === "B" && !ILLEGAL_DELIVERIES.includes(b.result)).length;
   const ballsRemaining = totalBallsInInnings - inningsBBalls;
   const runsNeeded = target - scoreB.totalRuns;
   const teamBAllOut = (match?.outBatsmen || []).length >= (battingSquad.length - 1) && currentInnings === "B";
@@ -176,8 +204,9 @@ export default function LiveScoringAdmin() {
   const confirmBowler = () => {
     if (!match || !pendingBowler) return;
     // Validate: cannot bowl consecutive overs
-    if (match.lastBowler && pendingBowler === match.lastBowler) {
+    if (lastOverBowler && pendingBowler === lastOverBowler) {
       alert("Bowler cannot bowl consecutive overs.");
+      setPendingBowler("");
       return;
     }
     updateMatch({ ...match, currentBowler: pendingBowler });
@@ -186,8 +215,8 @@ export default function LiveScoringAdmin() {
   };
 
   // Check if innings overs are exhausted
-  const inningsALegal = matchBalls.filter((b) => b.innings === "A" && !["WD", "NB"].includes(b.result)).length;
-  const inningsBLegal = matchBalls.filter((b) => b.innings === "B" && !["WD", "NB"].includes(b.result)).length;
+  const inningsALegal = matchBalls.filter((b) => b.innings === "A" && !ILLEGAL_DELIVERIES.includes(b.result)).length;
+  const inningsBLegal = matchBalls.filter((b) => b.innings === "B" && !ILLEGAL_DELIVERIES.includes(b.result)).length;
   const inningsAComplete = inningsALegal >= totalBallsInInnings;
   const inningsBComplete = inningsBLegal >= totalBallsInInnings;
   const currentInningsComplete = currentInnings === "A" ? inningsAComplete : inningsBComplete;
@@ -197,8 +226,16 @@ export default function LiveScoringAdmin() {
     // Block if overs exhausted
     if (currentInningsComplete) return;
     const next = getNextBallInfo(matchBalls, match.currentInnings);
+    const currentOverLegalBalls = matchBalls.filter(
+      (b) => b.innings === match.currentInnings && b.over === next.over && !ILLEGAL_DELIVERIES.includes(b.result)
+    ).length;
+    if (!ILLEGAL_DELIVERIES.includes(result) && currentOverLegalBalls >= 6) {
+      updateMatch({ ...match, lastBowler: match.currentBowler, currentBowler: undefined });
+      setPhase("select-new-bowler");
+      return;
+    }
     
-    addBall({
+    addBallMutation({
       matchId: match.id,
       innings: match.currentInnings,
       over: next.over,
@@ -213,7 +250,7 @@ export default function LiveScoringAdmin() {
   };
 
   // Auto-end match checks (called after state settles)
-  const checkAutoResult = useCallback(() => {
+  const checkAutoResult = () => {
     if (!match || match.status !== "live") return;
     const latestBalls = balls.filter((b) => b.matchId === match.id);
     const latestScoreA = calculateInningsScore(latestBalls, "A");
@@ -221,7 +258,7 @@ export default function LiveScoringAdmin() {
 
     // Auto-switch innings A → B when overs exhausted
     if (currentInnings === "A") {
-      const legalA = latestBalls.filter((b) => b.innings === "A" && !["WD", "NB"].includes(b.result)).length;
+      const legalA = latestBalls.filter((b) => b.innings === "A" && !ILLEGAL_DELIVERIES.includes(b.result)).length;
       if (legalA >= totalBallsInInnings) {
         switchInnings();
       }
@@ -230,7 +267,7 @@ export default function LiveScoringAdmin() {
 
     // Innings B checks
     const tgt = latestScoreA.totalRuns + 1;
-    const legalB = latestBalls.filter((b) => b.innings === "B" && !["WD", "NB"].includes(b.result)).length;
+    const legalB = latestBalls.filter((b) => b.innings === "B" && !ILLEGAL_DELIVERIES.includes(b.result)).length;
     const bRem = totalBallsInInnings - legalB;
     const rNeeded = tgt - latestScoreB.totalRuns;
     const outs = (match.outBatsmen || []).length;
@@ -263,11 +300,11 @@ export default function LiveScoringAdmin() {
         endMatch(`${inningsATeamName} won by ${diff} runs`);
       }
     }
-  }, [match, balls, currentInnings, totalBallsInInnings, assigned]);
+  };
 
   const handlePostBall = (result: string, overNum: number, ballNum: number) => {
     if (!match) return;
-    const isLegal = !["WD", "NB"].includes(result);
+    const isLegal = !ILLEGAL_DELIVERIES.includes(result);
     const isWicket = result === "W";
     const runsScored = ["1", "2", "3", "4", "5", "6"].includes(result) ? parseInt(result) : 0;
     const isOddRuns = runsScored % 2 === 1;
@@ -344,8 +381,9 @@ export default function LiveScoringAdmin() {
 
   const confirmNewBowler = () => {
     if (!match || !pendingBowler) return;
-    if (match.lastBowler && pendingBowler === match.lastBowler) {
+    if (lastOverBowler && pendingBowler === lastOverBowler) {
       alert("Bowler cannot bowl consecutive overs.");
+      setPendingBowler("");
       return;
     }
     updateMatch({ ...match, currentBowler: pendingBowler });
@@ -404,7 +442,7 @@ export default function LiveScoringAdmin() {
         updateMatch({ ...match, striker: lastBall.batter, outBatsmen: newOut });
         setPhase("scoring");
       }
-      deleteBall(lastBall.id);
+      deleteBallMutation({ matchId: match.id, ballId: lastBall.id });
     }
   };
 
@@ -462,7 +500,7 @@ export default function LiveScoringAdmin() {
                       min={1}
                       max={50}
                       value={match.totalOvers || 20}
-                      onChange={(e) => updateMatch({ ...match, totalOvers: parseInt(e.target.value) || 20 })}
+                      onChange={(e) => updateSelectedMatch({ totalOvers: parseInt(e.target.value) || 20 })}
                       className="w-16 bg-secondary text-foreground border border-border rounded-md px-2 py-1.5 text-sm"
                     />
                   </div>
@@ -643,9 +681,9 @@ export default function LiveScoringAdmin() {
                 <Shield className="w-4 h-4 text-primary" />
                 {phase === "select-bowler" ? "Select Opening Bowler" : "Select Bowler for Next Over"}
               </h3>
-              {match.lastBowler && (
+              {lastOverBowler && (
                 <p className="text-xs text-muted-foreground mb-2">
-                  Last over bowled by: <span className="font-semibold text-foreground">{getPlayerName(match.lastBowler)}</span> (cannot bowl consecutive)
+                  Last over bowled by: <span className="font-semibold text-foreground">{getPlayerName(lastOverBowler)}</span> (cannot bowl consecutive)
                 </p>
               )}
               <select value={pendingBowler} onChange={(e) => setPendingBowler(e.target.value)}
@@ -738,11 +776,11 @@ export default function LiveScoringAdmin() {
                     const overRuns = overBalls.reduce((s, b) => {
                       const r = b.result;
                       if (["1","2","3","4","5","6"].includes(r)) return s + parseInt(r);
-                      if (["WD","NB","LB","B"].includes(r)) return s + 1;
+                      if ([...ILLEGAL_DELIVERIES, "LB","B"].includes(r)) return s + 1;
                       return s;
                     }, 0);
                     const overWickets = overBalls.filter((b) => b.result === "W").length;
-                    const isLegalComplete = overBalls.filter((b) => !["WD","NB"].includes(b.result)).length >= 6;
+                    const isLegalComplete = overBalls.filter((b) => !ILLEGAL_DELIVERIES.includes(b.result)).length >= 6;
                     const isCurrentOver = !isLegalComplete && Object.keys(overs).indexOf(overNum) === Object.keys(overs).length - 1;
 
                     return (
@@ -891,7 +929,7 @@ export default function LiveScoringAdmin() {
 
 function InningsSummary({ label, balls: inningBalls, score }: {
   label: string;
-  balls: any[];
+  balls: BallData[];
   score: { score: string; overs: string; totalRuns: number; wickets: number };
 }) {
   return (
@@ -905,7 +943,7 @@ function InningsSummary({ label, balls: inningBalls, score }: {
           <p className="text-xs text-muted-foreground">No balls bowled yet.</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {inningBalls.sort((a: any, b: any) => a.over - b.over || a.ball - b.ball).map((b: any) => (
+            {[...inningBalls].sort((a, b) => a.over - b.over || a.ball - b.ball).map((b) => (
               <div key={b.id}
                 className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${BALL_COLORS[b.result] || "bg-muted text-muted-foreground"}`}>
                 {b.result}

@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { BallData as UiBallData } from '@/types/cricket';
 
 export interface BallData {
   match_id: string;
@@ -11,14 +12,89 @@ export interface BallData {
   dismissal_type?: string;
   dismissal_player?: string;
   notes?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface InsertBallResponse {
   success: boolean;
   message: string;
-  data?: any;
+  data?: unknown;
   error?: string;
+}
+
+interface LiveBallRow {
+  id: string;
+  match_id: string;
+  innings?: "A" | "B" | null;
+  over_number: number;
+  ball_number: number;
+  result?: string | null;
+  runs?: number | null;
+  batter_id?: string | null;
+  batsman_id?: string | null;
+  bowler_player_id?: string | null;
+  bowler_id?: string | null;
+}
+
+const mapLiveBallRow = (row: LiveBallRow): UiBallData => ({
+  id: row.id,
+  matchId: row.match_id,
+  innings: row.innings || 'A',
+  over: row.over_number,
+  ball: row.ball_number,
+  result: row.result || String(row.runs ?? 0),
+  batter: row.batter_id || row.batsman_id || undefined,
+  bowler: row.bowler_player_id || row.bowler_id || undefined,
+});
+
+export async function fetchLiveBallsByMatch(matchId: string): Promise<{ data: UiBallData[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from('balls')
+    .select('*')
+    .eq('match_id', matchId)
+    .order('innings', { ascending: true })
+    .order('over_number', { ascending: true })
+    .order('ball_number', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    return { data: [], error: error.message || 'Failed to fetch balls' };
+  }
+
+  return { data: ((data as LiveBallRow[]) || []).map(mapLiveBallRow), error: null };
+}
+
+export async function addLiveBall(ball: Omit<UiBallData, 'id'>): Promise<{ data: UiBallData | null; error: string | null }> {
+  const resultRuns = ['0', '1', '2', '3', '4', '5', '6'].includes(ball.result) ? Number(ball.result) : 0;
+  const { data, error } = await supabase
+    .from('balls')
+    .insert([{
+      match_id: ball.matchId,
+      innings: ball.innings,
+      over_number: ball.over,
+      ball_number: ball.ball,
+      result: ball.result,
+      runs: resultRuns,
+      batter_id: ball.batter || null,
+      batsman_id: ball.batter || null,
+      bowler_player_id: ball.bowler || null,
+      bowler_id: ball.bowler || null,
+      wicket: ball.result === 'W',
+      recorded_at: new Date().toISOString(),
+    }])
+    .select()
+    .single();
+
+  if (error || !data) {
+    return { data: null, error: error?.message || 'Failed to add ball' };
+  }
+
+  return { data: mapLiveBallRow(data), error: null };
+}
+
+export async function deleteLiveBall(ballId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('balls').delete().eq('id', ballId);
+  return { error: error ? error.message || 'Failed to delete ball' : null };
 }
 
 /**

@@ -19,18 +19,38 @@ const statusToDb = (status?: Match["status"]): string => {
   return "scheduled";
 };
 
+const mapDateOnly = (value?: string | null): string => {
+  if (!value) return "";
+  return value.slice(0, 10);
+};
+
 const mapMatchRow = (row: any): Match => ({
   id: row.id,
+  teamAId: row.team1_id,
+  teamBId: row.team2_id,
   teamA: row.team1?.name || "Team A",
   teamB: row.team2?.name || "Team B",
-  date: row.match_date ? new Date(row.match_date).toISOString().slice(0, 10) : "",
+  date: mapDateOnly(row.match_date),
   status: statusToUi(row.status),
   venue: row.venue || "",
-  scoreA: "",
-  scoreB: "",
-  oversA: "",
-  oversB: "",
-  result: "",
+  scoreA: row.score_a || "",
+  scoreB: row.score_b || "",
+  oversA: row.overs_a || "",
+  oversB: row.overs_b || "",
+  result: row.result || "",
+  liveScoring: Boolean(row.live_scoring),
+  currentInnings: row.current_innings || undefined,
+  striker: row.striker_id || undefined,
+  nonStriker: row.non_striker_id || undefined,
+  currentBowler: row.current_bowler_id || undefined,
+  lastBowler: row.last_bowler_id || undefined,
+  outBatsmen: row.out_batsmen || [],
+  totalOvers: row.total_overs || row.overs_per_side || 20,
+  tossWinner: row.toss_winner || undefined,
+  tossDecision: row.toss_decision || undefined,
+  tossCompleted: Boolean(row.toss_completed),
+  inningsATeam: row.innings_a_team || undefined,
+  inningsBTeam: row.innings_b_team || undefined,
 });
 
 async function ensureTeam(name: string): Promise<string> {
@@ -141,6 +161,27 @@ export async function updateMatch(matchId: string, updates: Partial<Match>): Pro
     if (updates.date !== undefined) dbUpdates.match_date = updates.date;
     if (updates.venue !== undefined) dbUpdates.venue = updates.venue;
     if (updates.status !== undefined) dbUpdates.status = statusToDb(updates.status);
+    if (updates.scoreA !== undefined) dbUpdates.score_a = updates.scoreA;
+    if (updates.scoreB !== undefined) dbUpdates.score_b = updates.scoreB;
+    if (updates.oversA !== undefined) dbUpdates.overs_a = updates.oversA;
+    if (updates.oversB !== undefined) dbUpdates.overs_b = updates.oversB;
+    if (updates.result !== undefined) dbUpdates.result = updates.result;
+    if (updates.liveScoring !== undefined) dbUpdates.live_scoring = updates.liveScoring;
+    if (updates.currentInnings !== undefined) dbUpdates.current_innings = updates.currentInnings;
+    if ("striker" in updates) dbUpdates.striker_id = updates.striker || null;
+    if ("nonStriker" in updates) dbUpdates.non_striker_id = updates.nonStriker || null;
+    if ("currentBowler" in updates) dbUpdates.current_bowler_id = updates.currentBowler || null;
+    if ("lastBowler" in updates) dbUpdates.last_bowler_id = updates.lastBowler || null;
+    if (updates.outBatsmen !== undefined) dbUpdates.out_batsmen = updates.outBatsmen;
+    if (updates.totalOvers !== undefined) {
+      dbUpdates.total_overs = updates.totalOvers;
+      dbUpdates.overs_per_side = updates.totalOvers;
+    }
+    if (updates.tossWinner !== undefined) dbUpdates.toss_winner = updates.tossWinner;
+    if (updates.tossDecision !== undefined) dbUpdates.toss_decision = updates.tossDecision;
+    if (updates.tossCompleted !== undefined) dbUpdates.toss_completed = updates.tossCompleted;
+    if (updates.inningsATeam !== undefined) dbUpdates.innings_a_team = updates.inningsATeam;
+    if (updates.inningsBTeam !== undefined) dbUpdates.innings_b_team = updates.inningsBTeam;
 
     const { error } = await supabase.from("matches").update(dbUpdates).eq("id", matchId);
     if (error) {

@@ -1,5 +1,7 @@
 export interface Match {
   id: string;
+  teamAId?: string;
+  teamBId?: string;
   teamA: string;
   teamB: string;
   date: string;

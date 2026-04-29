@@ -49,17 +49,15 @@ export function getNextBallInfo(balls: BallData[], innings: "A" | "B") {
 
   if (inningsBalls.length === 0) return { over: 1, ball: 1 };
 
-  const last = inningsBalls[inningsBalls.length - 1];
-  const lastResult = last.result;
+  const currentOver = Math.max(...inningsBalls.map((b) => b.over));
+  const currentOverBalls = inningsBalls.filter((b) => b.over === currentOver);
+  const legalBallsInOver = currentOverBalls.filter((b) => !["WD", "NB"].includes(b.result)).length;
 
-  if (lastResult === "WD" || lastResult === "NB") {
-    return { over: last.over, ball: last.ball };
+  if (legalBallsInOver >= 6) {
+    return { over: currentOver + 1, ball: 1 };
   }
 
-  if (last.ball >= 6) {
-    return { over: last.over + 1, ball: 1 };
-  }
-  return { over: last.over, ball: last.ball + 1 };
+  return { over: currentOver, ball: legalBallsInOver + 1 };
 }
 
 /** Check if an over just completed (last legal ball was ball 6) */

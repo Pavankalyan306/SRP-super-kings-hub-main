@@ -1,34 +1,113 @@
 import { useState } from "react";
-import { useData } from "@/context/DataContext";
+import { useMatches } from "@/hooks/useMatches";
+import {
+  useAddMatchPlayer,
+  useDeleteMatchPlayer,
+  useMatchPlayers,
+  useUpdateMatchPlayerRoleFlags,
+  useUpdateMatchPlayerTeam,
+} from "@/hooks/useMatchPlayers";
+import { usePlayers } from "@/hooks/usePlayers";
+import { toast } from "@/hooks/use-toast";
 import { MatchPlayer } from "@/types/cricket";
 import { motion } from "framer-motion";
-import { ArrowLeftRight, Shield, Star, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeftRight, Shield, Star, Trash2 } from "lucide-react";
 
 export default function TeamAdmin() {
-  const { matches, players, matchPlayers, addMatchPlayer, updateMatchPlayer, deleteMatchPlayer } = useData();
   const [selectedMatchId, setSelectedMatchId] = useState("");
+  const { data: matches = [], isLoading: matchesLoading, isError: matchesError, error: matchesLoadError } = useMatches();
+  const { data: players = [], isLoading: playersLoading } = usePlayers();
 
   const match = matches.find((m) => m.id === selectedMatchId);
-  const assigned = matchPlayers.filter((mp) => mp.matchId === selectedMatchId);
+  const { data: assigned = [], isLoading: assignmentsLoading } = useMatchPlayers(
+    selectedMatchId,
+    match?.teamAId,
+    match?.teamBId
+  );
+  const { mutate: addMatchPlayer } = useAddMatchPlayer();
+  const { mutate: updateMatchPlayerTeam } = useUpdateMatchPlayerTeam();
+  const { mutate: updateMatchPlayerRoleFlags } = useUpdateMatchPlayerRoleFlags();
+  const { mutate: deleteMatchPlayer } = useDeleteMatchPlayer();
+
   const teamA = assigned.filter((mp) => mp.team === "A");
   const teamB = assigned.filter((mp) => mp.team === "B");
   const assignedIds = new Set(assigned.map((mp) => mp.playerId));
   const unassigned = players.filter((p) => !assignedIds.has(p.id));
 
   const assignPlayer = (playerId: string, team: "A" | "B") => {
-    addMatchPlayer({ matchId: selectedMatchId, playerId, team });
+    const teamId = team === "A" ? match?.teamAId : match?.teamBId;
+    if (!selectedMatchId || !teamId) return;
+
+    addMatchPlayer(
+      { matchId: selectedMatchId, playerId, teamId },
+      {
+        onSuccess: (response) => {
+          if (response.error) {
+            toast({ title: "Assign failed", description: response.error, variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Assign failed", description: "Could not assign player.", variant: "destructive" }),
+      }
+    );
   };
 
   const swapTeam = (mp: MatchPlayer) => {
-    updateMatchPlayer({ ...mp, team: mp.team === "A" ? "B" : "A" });
+    const nextTeamId = mp.team === "A" ? match?.teamBId : match?.teamAId;
+    if (!nextTeamId) return;
+
+    updateMatchPlayerTeam(
+      { matchId: selectedMatchId, assignmentId: mp.id, teamId: nextTeamId },
+      {
+        onSuccess: (response) => {
+          if (response.error) {
+            toast({ title: "Update failed", description: response.error, variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Update failed", description: "Could not move player.", variant: "destructive" }),
+      }
+    );
   };
 
   const toggleCaptain = (mp: MatchPlayer) => {
-    updateMatchPlayer({ ...mp, isCaptain: !mp.isCaptain });
+    updateMatchPlayerRoleFlags(
+      { matchId: selectedMatchId, assignmentId: mp.id, current: mp, flag: "captain", enabled: !mp.isCaptain },
+      {
+        onSuccess: (response) => {
+          if (response.error) {
+            toast({ title: "Update failed", description: response.error, variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Update failed", description: "Could not update captain.", variant: "destructive" }),
+      }
+    );
   };
 
   const toggleWK = (mp: MatchPlayer) => {
-    updateMatchPlayer({ ...mp, isWicketKeeper: !mp.isWicketKeeper });
+    updateMatchPlayerRoleFlags(
+      { matchId: selectedMatchId, assignmentId: mp.id, current: mp, flag: "wicketkeeper", enabled: !mp.isWicketKeeper },
+      {
+        onSuccess: (response) => {
+          if (response.error) {
+            toast({ title: "Update failed", description: response.error, variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Update failed", description: "Could not update wicket keeper.", variant: "destructive" }),
+      }
+    );
+  };
+
+  const removeAssignment = (assignmentId: string) => {
+    deleteMatchPlayer(
+      { matchId: selectedMatchId, assignmentId },
+      {
+        onSuccess: (response) => {
+          if (response.error) {
+            toast({ title: "Remove failed", description: response.error, variant: "destructive" });
+          }
+        },
+        onError: () => toast({ title: "Remove failed", description: "Could not remove player.", variant: "destructive" }),
+      }
+    );
   };
 
   const getPlayerName = (playerId: string) => players.find((p) => p.id === playerId)?.name || "Unknown";
@@ -44,21 +123,32 @@ export default function TeamAdmin() {
           className="w-full max-w-md bg-secondary text-foreground border border-border rounded-md px-3 py-2 text-sm"
         >
           <option value="">-- Select a match --</option>
-          {matches.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.teamA} vs {m.teamB} ({m.date}) — {m.status}
-            </option>
-          ))}
+          {matchesLoading ? (
+            <option value="" disabled>Loading matches...</option>
+          ) : (
+            matches.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.teamA} vs {m.teamB} ({m.date}) - {m.status}
+              </option>
+            ))
+          )}
         </select>
       </div>
+
+      {matchesError && (
+        <p className="text-destructive text-sm mb-4">Failed to load matches: {matchesLoadError?.message}</p>
+      )}
 
       {!selectedMatchId && (
         <p className="text-muted-foreground text-sm">Select a match to manage team assignments.</p>
       )}
 
+      {selectedMatchId && (playersLoading || assignmentsLoading) && (
+        <p className="text-muted-foreground text-sm">Loading team assignments...</p>
+      )}
+
       {selectedMatchId && match && (
         <div className="space-y-6">
-          {/* Unassigned players */}
           {unassigned.length > 0 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border border-border rounded-lg p-5">
               <h3 className="font-heading text-sm font-bold text-foreground mb-3">
@@ -73,13 +163,13 @@ export default function TeamAdmin() {
                       onClick={() => assignPlayer(p.id, "A")}
                       className="ml-2 text-xs bg-primary/20 text-primary px-2 py-0.5 rounded hover:bg-primary/30 transition-colors"
                     >
-                      → A
+                      To A
                     </button>
                     <button
                       onClick={() => assignPlayer(p.id, "B")}
                       className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded hover:bg-accent/30 transition-colors"
                     >
-                      → B
+                      To B
                     </button>
                   </div>
                 ))}
@@ -87,28 +177,27 @@ export default function TeamAdmin() {
             </motion.div>
           )}
 
-          {/* Team panels */}
           <div className="grid md:grid-cols-2 gap-4">
             <TeamPanel
-              label={`Team A — ${match.teamA}`}
+              label={`Team A - ${match.teamA}`}
               members={teamA}
               getPlayerName={getPlayerName}
               getPlayerRole={getPlayerRole}
               onSwap={swapTeam}
               onToggleCaptain={toggleCaptain}
               onToggleWK={toggleWK}
-              onRemove={(id) => deleteMatchPlayer(id)}
+              onRemove={removeAssignment}
               accent="primary"
             />
             <TeamPanel
-              label={`Team B — ${match.teamB}`}
+              label={`Team B - ${match.teamB}`}
               members={teamB}
               getPlayerName={getPlayerName}
               getPlayerRole={getPlayerRole}
               onSwap={swapTeam}
               onToggleCaptain={toggleCaptain}
               onToggleWK={toggleWK}
-              onRemove={(id) => deleteMatchPlayer(id)}
+              onRemove={removeAssignment}
               accent="accent"
             />
           </div>

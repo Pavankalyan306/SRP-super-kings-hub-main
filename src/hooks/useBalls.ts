@@ -4,9 +4,13 @@ import {
   insertBalls,
   fetchBallsByOver,
   fetchBallsByMatch,
+  fetchLiveBallsByMatch,
+  addLiveBall,
+  deleteLiveBall,
   BallData,
   InsertBallResponse,
 } from '@/lib/balls';
+import { BallData as UiBallData } from '@/types/cricket';
 
 /**
  * Insert a single ball record
@@ -101,5 +105,47 @@ export function useBallsByMatch(
     staleTime: 1000 * 10, // 10 seconds - live data
     gcTime: 1000 * 60 * 5, // 5 minutes
     refetchInterval: 1000 * 5, // Auto-refetch every 5 seconds during live match
+  });
+}
+
+export function useLiveBallsByMatch(matchId: string | undefined): UseQueryResult<UiBallData[], Error> {
+  return useQuery({
+    queryKey: ['live-balls', matchId],
+    queryFn: async () => {
+      if (!matchId) return [];
+      const response = await fetchLiveBallsByMatch(matchId);
+      if (response.error) throw new Error(response.error);
+      return response.data;
+    },
+    enabled: !!matchId,
+    staleTime: 1000 * 5,
+    gcTime: 1000 * 60 * 5,
+    refetchInterval: 1000 * 5,
+  });
+}
+
+export function useAddLiveBall() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: addLiveBall,
+    onSuccess: (response) => {
+      if (response.data) {
+        queryClient.invalidateQueries({ queryKey: ['live-balls', response.data.matchId] });
+        queryClient.invalidateQueries({ queryKey: ['matches'] });
+      }
+    },
+  });
+}
+
+export function useDeleteLiveBall() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ matchId, ballId }: { matchId: string; ballId: string }) => deleteLiveBall(ballId),
+    onSuccess: (_response, { matchId }) => {
+      queryClient.invalidateQueries({ queryKey: ['live-balls', matchId] });
+      queryClient.invalidateQueries({ queryKey: ['matches'] });
+    },
   });
 }
