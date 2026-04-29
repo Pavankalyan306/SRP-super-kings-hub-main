@@ -196,6 +196,15 @@ export async function updateMatch(matchId: string, updates: Partial<Match>): Pro
 
 export async function deleteMatch(matchId: string): Promise<{ error: string | null }> {
   try {
+    const relatedTables = ["balls", "batting_entries", "bowling_entries", "match_players", "photos"];
+
+    for (const table of relatedTables) {
+      const { error } = await supabase.from(table).delete().eq("match_id", matchId);
+      if (error) {
+        return { error: error.message || `Failed to delete ${table} for match ${matchId}` };
+      }
+    }
+
     const { error } = await supabase.from("matches").delete().eq("id", matchId);
     return { error: error ? error.message || `Failed to delete match ${matchId}` : null };
   } catch (err) {

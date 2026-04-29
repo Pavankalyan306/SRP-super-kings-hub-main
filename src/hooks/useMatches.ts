@@ -146,6 +146,9 @@ export function useDeleteMatch() {
       );
       // Invalidate matches list
       queryClient.invalidateQueries({ queryKey: ['matches'] });
+      queryClient.invalidateQueries({ queryKey: ['match-players'] });
+      queryClient.invalidateQueries({ queryKey: ['live-balls'] });
+      queryClient.invalidateQueries({ queryKey: ['balls'] });
     },
     onError: (error) => {
       console.error('Failed to delete match:', error);

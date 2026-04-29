@@ -142,6 +142,25 @@ function MatchesAdmin() {
     cancel();
   };
 
+  const removeMatch = (match: Match) => {
+    deleteMatch(match.id, {
+      onSuccess: () => {
+        if (editing?.id === match.id) cancel();
+        toast({
+          title: "Match deleted",
+          description: `${match.teamA} vs ${match.teamB} was removed from the database.`,
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "Delete failed",
+          description: error instanceof Error ? error.message : "Could not delete match.",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
   return (
     <div>
       <button onClick={startAdd} className="flex items-center gap-2 gradient-gold text-primary-foreground font-semibold px-4 py-2 rounded-md mb-6 hover:opacity-90 transition-opacity">
@@ -190,7 +209,7 @@ function MatchesAdmin() {
               </div>
               <div className="flex gap-2">
                 <button onClick={() => startEdit(m)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
-                <button onClick={() => deleteMatch(m.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => removeMatch(m)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>
           ))
