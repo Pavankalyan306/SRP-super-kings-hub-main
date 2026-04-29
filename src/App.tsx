@@ -9,6 +9,7 @@ import { DataProvider } from "@/context/DataContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Layout from "@/components/Layout";
+import MatchStartNotifier from "@/components/MatchStartNotifier";
 import Index from "./pages/Index";
 import Matches from "./pages/Matches";
 import Players from "./pages/Players";
@@ -47,6 +48,7 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <AuthHashRedirect />
+            <MatchStartNotifier />
             <Layout>
               <Routes>
                 <Route path="/" element={<Index />} />

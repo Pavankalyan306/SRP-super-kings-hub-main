@@ -8,7 +8,7 @@ import { uploadPlayerProfileImage, deletePlayerProfileImage } from "@/lib/player
 import { toast } from "@/hooks/use-toast";
 import { Match, Player, NewsItem } from "@/types/cricket";
 import { motion } from "framer-motion";
-import { LogOut, Plus, Pencil, Trash2, Trophy, Users, Newspaper, Activity, TrendingUp, ClipboardList, UserPlus, Zap, Image, User } from "lucide-react";
+import { LogOut, Plus, Pencil, Trash2, Trophy, Users, Newspaper, Activity, TrendingUp, ClipboardList, UserPlus, Zap, Image, User, Play } from "lucide-react";
 import ScorecardAdmin from "@/components/admin/ScorecardAdmin";
 import AboutAdmin from "@/components/admin/AboutAdmin";
 import TeamAdmin from "@/components/admin/TeamAdmin";
@@ -142,6 +142,16 @@ function MatchesAdmin() {
     cancel();
   };
 
+  const startMatch = (match: Match) => {
+    updateMatch(
+      { matchId: match.id, updates: { status: "live" } },
+      {
+        onSuccess: () => toast({ title: "Match started", description: "Public users will be notified." }),
+        onError: () => toast({ title: "Start failed", description: "Could not start match.", variant: "destructive" }),
+      }
+    );
+  };
+
   return (
     <div>
       <button onClick={startAdd} className="flex items-center gap-2 gradient-gold text-primary-foreground font-semibold px-4 py-2 rounded-md mb-6 hover:opacity-90 transition-opacity">
@@ -189,6 +199,14 @@ function MatchesAdmin() {
                 <p className="text-xs text-muted-foreground">{m.date} · {m.status}</p>
               </div>
               <div className="flex gap-2">
+                {m.status === "upcoming" && (
+                  <button
+                    onClick={() => startMatch(m)}
+                    className="flex items-center gap-1 rounded-md bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground transition-opacity hover:opacity-90"
+                  >
+                    <Play className="w-3.5 h-3.5" /> Start
+                  </button>
+                )}
                 <button onClick={() => startEdit(m)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Pencil className="w-4 h-4" /></button>
                 <button onClick={() => deleteMatch(m.id)} className="p-2 text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="w-4 h-4" /></button>
               </div>
